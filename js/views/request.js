@@ -32,7 +32,8 @@ export async function render(el, { tt, me }) {
     plan = mountPlanner($('#r-plan'), { data: tt.data, rank, absent: me.teacher, items, allowEmpty: true });
     $('#r-send').disabled = !v.dates.length || v.noneChecked;
   };
-  const form = mountLeaveForm($('#r-form'), { data: tt.data, fixedTeacher: me.teacher, withReason: true, onChange: rebuild });
+  const form = mountLeaveForm($('#r-form'), { data: tt.data, fixedTeacher: me.teacher, withReason: true, onChange: rebuild,
+    onParsed: (p) => { if (p.contact) $('#r-contact').value = p.contact; } });
   rebuild(form.read());
 
   $('#r-send').addEventListener('click', async () => {

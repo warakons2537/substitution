@@ -34,3 +34,8 @@
 - รัน `supabase/schema.sql` ซ้ำอีกครั้ง (เพิ่มฟังก์ชัน `sub_teacher_profiles`)
 - เมนู "รายงาน" (ผู้ดูแล/ฝ่ายวิชาการ): Excel 5 แผ่นงาน · พิมพ์รายงานสรุป A4 · ดาวน์โหลด Word · พิมพ์บันทึกการสอนแทนแทนครู
 - ไฟล์ที่เปลี่ยน: `supabase/schema.sql`, `js/app.js`, `js/config.js`, `js/print.js`, `css/app.css`, `js/report.js` (ใหม่), `js/views/reports.js` (ใหม่), `README.md`
+
+## อัปเดต 2569.10.25-5 (รอบ 2 ส่วนที่ 4)
+- อ่านใบลาจากไฟล์ .docx / .pdf (ที่มีข้อความ) แล้วกรอกฟอร์มให้: หน้า "ช่วยจัดครูสอนแทน" และ "แจ้งขอลา/ขอสอนแทน"
+- ไม่ต้องรัน SQL เพิ่ม
+- ไฟล์ที่เปลี่ยน: `js/leaveform.js`, `js/views/request.js`, `js/config.js`, `js/leaveread.js` (ใหม่), `README.md`

@@ -2,14 +2,18 @@
 import { $, $$, esc, opts, todayISO, dowIndex, dateRange } from './util.js';
 import { LEAVE_TYPES } from './config.js';
 import { slotsOf, realTeachers } from './timetable.js';
+import { readLeaveText, parseLeave } from './leaveread.js';
 
 /**
  * fixedTeacher: ชื่อครู (ผู้ขอลา) หรือ null = เลือกได้
  * onChange(v) เรียกเมื่อค่าเปลี่ยน: v = { teacher, from, to, dates, periods, leave_type, reason }
+ * onParsed(p) เรียกหลังอ่านใบลาจากไฟล์ (เช่น เอาที่ติดต่อไปใส่)
  */
-export function mountLeaveForm(el, { data, fixedTeacher = null, withReason = false, onChange }) {
+export function mountLeaveForm(el, { data, fixedTeacher = null, withReason = false, onChange, onParsed }) {
   const teachers = realTeachers(data);
-  el.innerHTML = `<div class="form-grid">
+  el.innerHTML = `<label>อ่านจากไฟล์ใบลา (.docx / .pdf ที่มีข้อความ — ไม่รองรับไฟล์สแกน)
+    <input type="file" name="lf-file" accept=".docx,.pdf"></label><p class="small" id="lf-msg"></p>
+  <div class="form-grid">
     <label>ครูที่ลา${fixedTeacher ? `<input value="${esc(fixedTeacher)}" disabled>`
       : `<select name="teacher"><option value="">— เลือก —</option>${opts(teachers)}</select>`}</label>
     <label>ตั้งแต่วันที่<input type="date" name="from" value="${todayISO()}"></label>
@@ -45,7 +49,27 @@ export function mountLeaveForm(el, { data, fixedTeacher = null, withReason = fal
       : '<p class="muted small">วันนี้ไม่มีคาบสอนตามตารางสอน</p>';
     $$('input', box).forEach((c) => c.addEventListener('change', () => onChange(read())));
   };
-  $$('input,select', el).forEach((x) => x.addEventListener('change', () => {
+  $('[name="lf-file"]', el).addEventListener('change', async (e) => {
+    const file = e.target.files[0]; const msg = $('#lf-msg', el);
+    if (!file) return;
+    msg.className = 'small muted'; msg.textContent = 'กำลังอ่านไฟล์…';
+    try {
+      const text = await readLeaveText(file);
+      if (text.replace(/\s/g, '').length < 20) throw new Error('ไม่พบข้อความในไฟล์ (อาจเป็นไฟล์สแกน) กรุณากรอกเอง');
+      const p = parseLeave(text, teachers);
+      const set = (n, v) => { const f = $(`[name="${n}"]`, el); if (f && v) f.value = v; };
+      if (!fixedTeacher) set('teacher', p.teacher);
+      set('from', p.from); set('to', p.to); set('leave_type', p.leave_type); set('reason', p.reason);
+      drawPeriods(); onChange(read()); onParsed?.(p);
+      const miss = ['ชื่อครู', 'ประเภทการลา', 'วันที่', 'เหตุผล'].filter((k) => !p.found.includes(k));
+      const other = fixedTeacher && p.teacher && p.teacher !== fixedTeacher ? ` · ชื่อในใบลา (${p.name}) ไม่ตรงกับบัญชีนี้` : '';
+      const noName = !p.teacher && p.name ? ` · ไม่พบ "${p.name}" ในตารางสอน` : '';
+      msg.className = `small ${miss.length || other || noName ? 'warn' : 'muted'}`;
+      msg.textContent = `อ่านได้: ${p.found.join(', ') || '-'}${miss.length ? ` · ไม่พบ: ${miss.join(', ')}` : ''}${noName}${other} — ตรวจสอบก่อนบันทึก`;
+    } catch (err) { msg.className = 'small warn'; msg.textContent = err.message; }
+    e.target.value = '';
+  });
+  $$('.form-grid input, .form-grid select', el).forEach((x) => x.addEventListener('change', () => {
     if (x.name === 'from' && val('to') < val('from')) $('[name="to"]', el).value = val('from');
     if (['teacher', 'from', 'to'].includes(x.name)) drawPeriods();
     onChange(read());
