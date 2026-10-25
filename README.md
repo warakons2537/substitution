@@ -1,0 +1,20 @@
+# WL Substitution System — ระบบจัดการสอนแทน บ้านวังลึก (ย.น.)
+
+เว็บแอป HTML/JS บน GitHub Pages + Supabase (โปรเจกต์เดียวกับ WL Admin · ใช้บัญชี Login ชุดเดียวกัน)
+
+## ติดตั้ง (ครั้งแรก)
+1. Supabase → โปรเจกต์ของ WL Admin → SQL Editor → วางไฟล์ `supabase/schema.sql` ทั้งไฟล์ → Run
+   (สร้างเฉพาะตาราง `sub_*` ไม่แตะตารางของ WL Admin · รันซ้ำได้)
+2. อัปโหลดไฟล์ทั้งหมดใน repository ใหม่ (ให้ `index.html` อยู่ชั้นนอกสุด)
+3. Settings → Pages → Source: Deploy from a branch → `main` / `(root)` → Save
+4. เข้าเว็บด้วยบัญชีผู้ดูแลของ WL Admin → เป็นผู้ดูแลระบบสอนแทนอัตโนมัติ
+5. เมนู "นำเข้าตารางสอน" → เลือกไฟล์สำรอง .json จาก WL Scheduler → บันทึก
+6. เมนู "ผู้ใช้และสิทธิ์" → กำหนดสิทธิ์ (ผู้ดูแลระบบ / ฝ่ายวิชาการ / ผู้ขอลา) และผูกชื่อครูให้ผู้ขอลา
+
+## เปลี่ยนโลโก้
+อัปโหลดรูปทับไฟล์ใน `img/` โดยใช้ชื่อเดิม: `logo-32.png`, `logo-64.png`, `logo-192.png`, `logo-512.png`,
+`apple-touch-icon.png` (180×180) และ `logo-full.png` (ภาพเต็มในหน้า Login)
+
+## ติดตั้งเป็นแอป
+- iPad/iPhone: Safari → แชร์ → เพิ่มไปยังหน้าจอโฮม
+- Mac: Safari → ไฟล์ → เพิ่มไปยัง Dock
