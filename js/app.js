@@ -7,6 +7,8 @@ import * as requests from './views/requests.js';
 import * as records from './views/records.js';
 import * as imp from './views/import.js';
 import * as users from './views/users.js';
+import * as profile from './views/profile.js';
+import * as setts from './views/settings.js';
 
 const root = $('#app');
 
@@ -17,10 +19,11 @@ const STAFF = [
   ['records', 'บันทึกการสอนแทน', records.render, true],
   ['import', 'นำเข้าตารางสอน', imp.render, false],
 ];
+const MINE = ['profile', 'ข้อมูลของฉัน', profile.render, false];
 const NAV = {
-  admin: [...STAFF, ['users', 'ผู้ใช้และสิทธิ์', users.render, false]],
-  academic: STAFF,
-  requester: [['request', 'แจ้งขอลา/ขอสอนแทน', request.render, true], ['mine', 'คำขอของฉัน', request.renderMine, false]],
+  admin: [...STAFF, ['users', 'ผู้ใช้และสิทธิ์', users.render, false], ['settings', 'ตั้งค่าแบบพิมพ์', setts.render, false], MINE],
+  academic: [...STAFF, MINE],
+  requester: [['request', 'แจ้งขอลา/ขอสอนแทน', request.render, true], ['mine', 'คำขอของฉัน', request.renderMine, false], MINE],
 };
 
 function loginPage(mode = 'in') {

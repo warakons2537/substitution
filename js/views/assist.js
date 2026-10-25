@@ -2,7 +2,7 @@
 import { $, toast } from '../util.js';
 import { sb, q, rankData } from '../db.js';
 import { mountLeaveForm } from '../leaveform.js';
-import { buildItems, mountPlanner, NONE } from '../planner.js';
+import { buildItems, mountPlanner, NONE, noteOf } from '../planner.js';
 
 export async function render(el, { tt }) {
   el.innerHTML = `<h2>ช่วยจัดครูสอนแทน</h2>
@@ -10,9 +10,13 @@ export async function render(el, { tt }) {
     <div class="card"><div id="a-plan"><p class="muted">เลือกครูที่ลาและวันที่</p></div>
       <div class="actions"><button class="btn btn-primary" id="a-save" disabled>บันทึกการสอนแทน</button></div></div>`;
   let rank = await rankData();
-  let plan = null; let cur = null;
+  let plan = null; let cur = null; let lastKey = '';
 
   const rebuild = (v) => {
+    // เปลี่ยนแค่ประเภทการลา/เหตุผล ไม่ต้องสร้างตารางใหม่ (ค่าที่เลือกไว้ไม่หาย)
+    const key = JSON.stringify([v.teacher, v.dates, v.periods, v.noneChecked]);
+    if (plan && key === lastKey) { cur = v; return; }
+    lastKey = key;
     cur = v; plan = null; $('#a-save').disabled = true;
     if (!v.teacher || !v.dates.length) { $('#a-plan').innerHTML = '<p class="muted">เลือกครูที่ลาและวันที่</p>'; return; }
     let items = v.noneChecked ? [] : buildItems(tt.data, v.teacher, v.dates, v.periods);
@@ -30,7 +34,7 @@ export async function render(el, { tt }) {
     const rows = plan.items.map((it) => ({
       sub_date: it.date, academic_year: tt.academic_year, term: tt.term, period: it.p,
       absent_teacher: cur.teacher, leave_type: cur.leave_type, grade: it.grade, subject: it.subject,
-      substitute_teacher: it.sel === NONE ? '' : it.sel, note: it.sel === NONE ? 'ไม่ต้องสอนแทน' : '',
+      substitute_teacher: it.sel === NONE ? '' : it.sel, note: noteOf(it),
       status: 'confirmed', source: 'assist',
     }));
     try {
@@ -38,7 +42,7 @@ export async function render(el, { tt }) {
       await q(sb.from('sub_records').insert(rows));
       toast(`บันทึกแล้ว ${rows.length} คาบ`);
       rank = await rankData();
-      rebuild(cur);
+      lastKey = ''; rebuild(cur);
     } catch (e) { toast(e.message, 'err'); $('#a-save').disabled = false; }
   });
 }

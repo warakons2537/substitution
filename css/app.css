@@ -86,3 +86,35 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; color
   .span2 { grid-column: 1 / -1; }
   .planner select { min-width: 200px; }
 }
+/* ---------- แบบพิมพ์ A4 (TH SarabunPSK 16pt) ---------- */
+@font-face { font-family: 'WL TH SarabunPSK'; src: url('../fonts/sarabun-psk-regular.woff') format('woff'); font-weight: 400; font-display: block; }
+@font-face { font-family: 'WL TH SarabunPSK'; src: url('../fonts/sarabun-psk-bold.woff') format('woff'); font-weight: 700; font-display: block; }
+#print-root { display: none; }
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+  html, body { background: #fff !important; color: #000 !important; }
+  #app, .toast { display: none !important; }
+  #print-root { display: block; }
+}
+#print-root .a4 { width: 210mm; min-height: 297mm; padding: 15mm 20mm 12mm 25mm; box-sizing: border-box; page-break-after: always;
+  font: 16pt/1.25 'WL TH SarabunPSK', 'TH SarabunPSK', 'Sarabun', serif; color: #000; background: #fff; }
+#print-root .a4:last-child { page-break-after: auto; }
+#print-root h1 { font: 700 18pt/1.3 'WL TH SarabunPSK', serif; margin: 0 0 4pt; }
+#print-root p { margin: 0 0 2pt; }
+#print-root .pc { text-align: center; } #print-root .pr { text-align: right; } #print-root .pi { text-indent: 2.5em; }
+#print-root .pbox { display: inline-block; width: .8em; height: .8em; border: 1px solid #000; line-height: .8em; text-align: center; font-size: 13pt; vertical-align: -1px; margin: 0 2px; }
+#print-root .pchoose { border-collapse: collapse; margin: 2pt 0 2pt 2.5em; width: calc(100% - 2.5em); }
+#print-root .pchoose td { padding: 0 6pt; vertical-align: middle; white-space: nowrap; }
+#print-root .pchoose .pwho { width: 3em; }
+#print-root .pchoose .preason { white-space: normal; width: 100%; padding-left: 12pt; }
+#print-root .psign { margin: 10pt 0 6pt 50%; text-align: center; }
+#print-root .pgap { height: 24pt; }
+#print-root .psign2 { margin-top: 14pt; text-align: center; }
+#print-root .pcols { display: grid; grid-template-columns: 1fr 1fr; gap: 14pt; margin-top: 6pt; }
+#print-root .pgrid { width: 100%; border-collapse: collapse; }
+#print-root .pgrid th, #print-root .pgrid td { border: 1px solid #000; padding: 1pt 5pt; font-size: 16pt; }
+#print-root .pgrid th { font-weight: 700; text-align: center; }
+#print-root .plogo { width: 32mm; height: auto; }
+#print-root .ptypes { display: flex; justify-content: space-between; margin: 8pt 0; }
+#print-root .ptt td { height: 26pt; }
+#print-root .psigns { margin-top: 22pt; text-align: center; }

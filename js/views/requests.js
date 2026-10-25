@@ -1,7 +1,7 @@
 // ฝ่ายวิชาการ: พิจารณาคำขอลา/ขอสอนแทน
 import { $, $$, esc, toast, dateRange } from '../util.js';
 import { sb, q, rankData } from '../db.js';
-import { buildItems, mountPlanner, NONE } from '../planner.js';
+import { buildItems, mountPlanner, NONE, noteOf } from '../planner.js';
 import { STATUS, periodText, dateText } from './request.js';
 
 export async function render(el, ctx) {
@@ -32,11 +32,11 @@ async function openReq(el, ctx, req) {
   const items = buildItems(tt.data, req.teacher_name, dateRange(req.date_from, req.date_to), req.periods || []);
   for (const it of items) {
     const p = proposals.find((x) => x.sub_date === it.date && x.period === it.p);
-    if (p) it.sel = p.substitute_teacher || NONE;
+    if (p) { it.sel = p.substitute_teacher || NONE; it.note = p.note === 'ไม่ต้องสอนแทน' ? '' : p.note; }
   }
   box.innerHTML = `<div class="card"><h3>${esc(req.teacher_name)} · ${esc(dateText(req))} · ${esc(periodText(req))} · ${esc(req.leave_type)}</h3>
     ${req.reason ? `<p>เหตุผล: ${esc(req.reason)}</p>` : ''}
-    <p class="muted small">ค่าที่เลือกไว้ = ข้อเสนอของผู้ขอลา (คาบที่ไม่ได้เสนอ ระบบเลือกให้) เปลี่ยนได้ก่อนอนุมัติ</p>
+    <p class="muted small">ค่าที่เลือกไว้ = ที่ผู้ขอลาเลือกแล้ว (คาบที่ให้ฝ่ายวิชาการจัด ระบบเลือกให้) เปลี่ยนได้ก่อนอนุมัติ</p>
     <div id="rq-plan"></div>
     <label>หมายเหตุถึงผู้ขอลา<input id="rq-note" maxlength="300"></label>
     <div class="actions"><button class="btn" id="rq-reject">ไม่อนุมัติ</button>
@@ -48,15 +48,20 @@ async function openReq(el, ctx, req) {
     const note = $('#rq-note', box).value;
     if (status === 'approved' && !plan.valid()) { toast('กรุณาเลือกครูสอนแทน (หรือ "ไม่ต้องสอนแทน") ให้ครบทุกคาบ', 'err'); return; }
     try {
+      // ลบรายการเดิมของคำขอ แล้วบันทึกใหม่ (ถ้าบันทึกไม่สำเร็จ คืนรายการเดิม)
+      await q(sb.from('sub_records').delete().eq('request_id', req.id));
       if (status === 'approved' && plan.items.length) {
         await q(sb.from('sub_records').insert(plan.items.map((it) => ({
           request_id: req.id, sub_date: it.date, academic_year: tt.academic_year, term: tt.term, period: it.p,
           absent_teacher: req.teacher_name, leave_type: req.leave_type, grade: it.grade, subject: it.subject,
-          substitute_teacher: it.sel === NONE ? '' : it.sel, note: it.sel === NONE ? 'ไม่ต้องสอนแทน' : '',
+          substitute_teacher: it.sel === NONE ? '' : it.sel, note: noteOf(it),
           status: 'confirmed', source: 'request',
-        }))));
+        })))).catch(async (err) => {
+          const old = proposals.map(({ id, created_at, updated_at, ...r }) => r);
+          if (old.length) await sb.from('sub_records').insert(old);
+          throw err;
+        });
       }
-      await q(sb.from('sub_records').delete().eq('request_id', req.id).eq('status', 'proposed'));
       await q(sb.from('sub_requests').update({
         status, decision_note: note, decided_by: ctx.me.id, decided_at: new Date().toISOString(),
       }).eq('id', req.id));

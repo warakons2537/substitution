@@ -71,6 +71,28 @@ create index if not exists sub_records_req  on public.sub_records (request_id);
 create unique index if not exists sub_records_no_double on public.sub_records (sub_date, period, substitute_teacher)
   where substitute_teacher <> '' and status = 'confirmed';
 
+-- 5) ข้อมูลครูสำหรับแบบพิมพ์ (กรอกเองที่หน้า "ข้อมูลของฉัน")
+alter table public.sub_users add column if not exists full_name      text not null default '';  -- มีคำนำหน้า เช่น นายวรากร ตรงต่อกิจ
+alter table public.sub_users add column if not exists position       text not null default '';  -- ใช้ในใบลา เช่น ครูชำนาญการ
+alter table public.sub_users add column if not exists position_short text not null default '';  -- ใช้ในบันทึกการสอนแทน เช่น ครู คศ.2
+alter table public.sub_users add column if not exists phone          text not null default '';
+alter table public.sub_requests add column if not exists contact     text not null default '';  -- ระหว่างลาติดต่อได้ที่
+
+-- 6) ตั้งค่าแบบพิมพ์ (มีแถวเดียว)
+create table if not exists public.sub_settings (
+  id                 int primary key default 1 check (id = 1),
+  district           text not null default '',
+  area_office        text not null default '',
+  personnel_name     text not null default '',
+  personnel_position text not null default 'หัวหน้าฝ่ายบริหารงานบุคคล',
+  academic_name      text not null default '',
+  academic_position  text not null default 'หัวหน้าบริหารงานวิชาการ',
+  director_name      text not null default '',
+  director_position  text not null default 'ผู้อำนวยการโรงเรียนบ้านวังลึก(ยุวนาฏชนูทิศ)',
+  updated_at         timestamptz not null default now()
+);
+insert into public.sub_settings (id) values (1) on conflict (id) do nothing;
+
 -- ---------------------------------------------------------------------
 -- ฟังก์ชันสิทธิ์
 -- ---------------------------------------------------------------------
@@ -90,6 +112,18 @@ create or replace function public.sub_my_teacher() returns text
 language sql stable security definer set search_path = public as $$
   select coalesce((select teacher_name from public.sub_users where user_id = auth.uid()), '')
 $$;
+
+-- บันทึกข้อมูลครูของตัวเอง (แก้สิทธิ์/ชื่อครูในตารางสอนไม่ได้)
+create or replace function public.sub_save_profile(p_full_name text, p_position text, p_position_short text, p_phone text)
+returns void language plpgsql security definer set search_path = public as $$
+declare r text := public.sub_role();
+begin
+  if r is null then raise exception 'ไม่มีสิทธิ์ทำรายการนี้'; end if;
+  insert into public.sub_users (user_id, role, full_name, position, position_short, phone)
+  values (auth.uid(), r, coalesce(p_full_name,''), coalesce(p_position,''), coalesce(p_position_short,''), coalesce(p_phone,''))
+  on conflict (user_id) do update set full_name = excluded.full_name, position = excluded.position,
+    position_short = excluded.position_short, phone = excluded.phone;
+end $$;
 
 -- ข้อมูลสำหรับจัดอันดับครูสอนแทน (ไม่ส่งประเภทการลา/เหตุผลของคนอื่น)
 create or replace function public.sub_rank_data() returns jsonb
@@ -121,10 +155,11 @@ alter table public.sub_users      enable row level security;
 alter table public.sub_timetables enable row level security;
 alter table public.sub_requests   enable row level security;
 alter table public.sub_records    enable row level security;
+alter table public.sub_settings   enable row level security;
 
 do $$ declare r record; begin
   for r in select policyname, tablename from pg_policies
-           where schemaname = 'public' and tablename in ('sub_users','sub_timetables','sub_requests','sub_records') loop
+           where schemaname = 'public' and tablename in ('sub_users','sub_timetables','sub_requests','sub_records','sub_settings') loop
     execute format('drop policy %I on public.%I', r.policyname, r.tablename);
   end loop;
 end $$;
@@ -132,6 +167,10 @@ end $$;
 -- sub_users
 create policy sub_users_read  on public.sub_users for select using (user_id = auth.uid() or public.sub_is_admin());
 create policy sub_users_admin on public.sub_users for all    using (public.sub_is_admin()) with check (public.sub_is_admin());
+
+-- sub_settings
+create policy sub_set_read  on public.sub_settings for select using (public.sub_is_member());
+create policy sub_set_admin on public.sub_settings for update using (public.sub_is_admin()) with check (public.sub_is_admin());
 
 -- sub_timetables
 create policy sub_tt_read  on public.sub_timetables for select using (public.sub_is_member());
@@ -141,12 +180,12 @@ create policy sub_tt_staff on public.sub_timetables for all    using (public.sub
 create policy sub_req_read on public.sub_requests for select
   using (public.sub_is_staff() or requested_by = auth.uid());
 create policy sub_req_insert on public.sub_requests for insert
-  with check (public.sub_is_member() and requested_by = auth.uid() and status = 'pending'
+  with check (public.sub_is_member() and requested_by = auth.uid() and status in ('pending','approved')
               and (public.sub_is_staff() or teacher_name = public.sub_my_teacher()));
 create policy sub_req_staff on public.sub_requests for update
   using (public.sub_is_staff()) with check (public.sub_is_staff());
 create policy sub_req_cancel on public.sub_requests for update
-  using (requested_by = auth.uid() and status = 'pending')
+  using (requested_by = auth.uid() and status in ('pending','approved'))
   with check (requested_by = auth.uid() and status in ('pending','cancelled') and teacher_name = public.sub_my_teacher());
 create policy sub_req_delete on public.sub_requests for delete using (public.sub_is_staff());
 
@@ -154,14 +193,22 @@ create policy sub_req_delete on public.sub_requests for delete using (public.sub
 create policy sub_rec_read on public.sub_records for select using (
   public.sub_is_staff()
   or exists (select 1 from public.sub_requests q where q.id = request_id and q.requested_by = auth.uid()));
-create policy sub_rec_staff on public.sub_records for all
-  using (public.sub_is_staff()) with check (public.sub_is_staff());
-create policy sub_rec_propose on public.sub_records for insert with check (
-  status = 'proposed' and source = 'request' and created_by = auth.uid()
+create policy sub_rec_staff_ins on public.sub_records for insert with check (public.sub_is_staff());
+create policy sub_rec_staff_upd on public.sub_records for update using (public.sub_is_staff()) with check (public.sub_is_staff());
+-- ลบ: ผู้ดูแลระบบลบได้ทุกรายการ · ฝ่ายวิชาการลบได้เฉพาะรายการของคำขอ (ตอนไม่อนุมัติคำขอ)
+create policy sub_rec_del on public.sub_records for delete using (
+  public.sub_is_admin() or (public.sub_is_staff() and request_id is not null));
+-- ผู้ขอลา: เลือกครูสอนแทนเองมีผลทันที (เฉพาะคำขอของตัวเอง)
+create policy sub_rec_req_ins on public.sub_records for insert with check (
+  source = 'request' and status in ('proposed','confirmed') and created_by = auth.uid()
+  and absent_teacher = public.sub_my_teacher()
   and exists (select 1 from public.sub_requests q
-              where q.id = request_id and q.requested_by = auth.uid() and q.status = 'pending'));
-create policy sub_rec_unpropose on public.sub_records for delete using (
-  status = 'proposed' and created_by = auth.uid());
+              where q.id = request_id and q.requested_by = auth.uid() and q.status in ('pending','approved')));
+-- ผู้ขอลายกเลิกคำขอของตัวเอง -> ลบรายการของคำขอนั้น
+create policy sub_rec_req_del on public.sub_records for delete using (
+  source = 'request' and created_by = auth.uid()
+  and exists (select 1 from public.sub_requests q
+              where q.id = request_id and q.requested_by = auth.uid() and q.status in ('pending','approved')));
 
 -- updated_at
 create or replace function public.sub_touch() returns trigger language plpgsql as $$
@@ -172,4 +219,5 @@ drop trigger if exists sub_users_touch on public.sub_users;
 create trigger sub_users_touch before update on public.sub_users for each row execute function public.sub_touch();
 
 grant execute on function public.sub_role(), public.sub_is_admin(), public.sub_is_staff(), public.sub_is_member(),
-  public.sub_my_teacher(), public.sub_rank_data(), public.sub_list_users() to authenticated;
+  public.sub_my_teacher(), public.sub_rank_data(), public.sub_list_users(),
+  public.sub_save_profile(text, text, text, text) to authenticated;

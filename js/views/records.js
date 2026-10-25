@@ -8,6 +8,7 @@ const SRC = { assist: 'ช่วยจัด', manual: 'บันทึกเอ
 
 export async function render(el, ctx) {
   const { tt } = ctx;
+  const admin = ctx.me.role === 'admin';
   const month = sessionStorage.getItem('wlsub-month') || todayISO().slice(0, 7);
   const teachers = realTeachers(tt.data);
   const per = Array.from({ length: tt.data.periods }, (_, i) => i + 1);
@@ -33,14 +34,15 @@ export async function render(el, ctx) {
     </form></div>
     <div class="card"><div class="row-between"><h3>รายการเดือน</h3>
       <input type="month" id="m-month" value="${month}"></div>
-      ${list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>วันที่</th><th>คาบ</th><th>ครูที่ลา</th><th>ประเภท</th><th>ชั้น</th><th>วิชา</th><th>ครูสอนแทน</th><th>ที่มา</th><th></th></tr></thead><tbody>
-        ${list.map((r) => `<tr><td>${esc(thDay(r.sub_date))} ${esc(thDate(r.sub_date))}</td><td class="c">${r.period}</td>
+      ${list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr>${admin ? '<th><input type="checkbox" id="m-all" title="เลือกทั้งหมด"></th>' : ''}<th>วันที่</th><th>คาบ</th><th>ครูที่ลา</th><th>ประเภท</th><th>ชั้น</th><th>วิชา</th><th>ครูสอนแทน</th><th>ที่มา</th><th></th></tr></thead><tbody>
+        ${list.map((r) => `<tr>${admin ? `<td><input type="checkbox" class="m-pick" value="${r.id}"></td>` : ''}<td>${esc(thDay(r.sub_date))} ${esc(thDate(r.sub_date))}</td><td class="c">${r.period}</td>
           <td>${esc(r.absent_teacher)}</td><td>${esc(r.leave_type)}</td><td>${esc(r.grade)}</td><td>${esc(r.subject)}</td>
           <td>${r.substitute_teacher ? esc(r.substitute_teacher) : '<span class="muted">ไม่ต้องสอนแทน</span>'}</td>
           <td class="small">${SRC[r.source] || ''}</td>
           <td class="nowrap"><button class="btn btn-sm" data-edit="${r.id}">แก้ไข</button>
-            <button class="btn btn-sm btn-danger" data-del="${r.id}">ลบ</button></td></tr>`).join('')}
-      </tbody></table></div><p class="muted small">รวม ${list.length} คาบ</p>` : '<p class="muted">ยังไม่มีรายการในเดือนนี้</p>'}</div>`;
+            ${admin ? `<button class="btn btn-sm btn-danger" data-del="${r.id}">ลบ</button>` : ''}</td></tr>`).join('')}
+      </tbody></table></div><div class="row-between"><p class="muted small">รวม ${list.length} คาบ</p>
+      ${admin ? '<button class="btn btn-sm btn-danger" id="m-del-sel" disabled>ลบรายการที่เลือก</button>' : ''}</div>` : '<p class="muted">ยังไม่มีรายการในเดือนนี้</p>'}</div>`;
 
   const f = $('#m-form', el);
   const set = (n, v) => { f.elements[n].value = v ?? ''; };
@@ -75,4 +77,14 @@ export async function render(el, ctx) {
     if (!confirm('ลบรายการนี้?')) return;
     try { await q(sb.from('sub_records').delete().eq('id', b.dataset.del)); toast('ลบแล้ว'); render(el, ctx); } catch (err) { toast(err.message, 'err'); }
   }));
+  // ผู้ดูแลระบบ: เลือกหลายรายการแล้วลบ (รายการที่ลบไม่ถูกนับในสถิติอีก)
+  const picks = () => $$('.m-pick:checked', el).map((c) => c.value);
+  const sync = () => { const b = $('#m-del-sel', el); if (b) { const n = picks().length; b.disabled = !n; b.textContent = n ? `ลบรายการที่เลือก (${n})` : 'ลบรายการที่เลือก'; } };
+  $('#m-all', el)?.addEventListener('change', (e) => { $$('.m-pick', el).forEach((c) => { c.checked = e.target.checked; }); sync(); });
+  $$('.m-pick', el).forEach((c) => c.addEventListener('change', sync));
+  $('#m-del-sel', el)?.addEventListener('click', async () => {
+    const ids = picks();
+    if (!ids.length || !confirm(`ลบ ${ids.length} รายการที่เลือก?`)) return;
+    try { await q(sb.from('sub_records').delete().in('id', ids)); toast(`ลบแล้ว ${ids.length} รายการ`); render(el, ctx); } catch (err) { toast(err.message, 'err'); }
+  });
 }

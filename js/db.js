@@ -30,8 +30,9 @@ export const auth = {
 
 export async function loadMe(user) {
   const role = await q(sb.rpc('sub_role'));
-  const row = (await q(sb.from('sub_users').select('teacher_name').eq('user_id', user.id)))[0];
-  return { id: user.id, email: user.email, role, teacher: row?.teacher_name || '' };
+  const row = (await q(sb.from('sub_users').select('teacher_name,full_name,position,position_short,phone').eq('user_id', user.id)))[0] || {};
+  return { id: user.id, email: user.email, role, teacher: row.teacher_name || '',
+    full_name: row.full_name || '', position: row.position || '', position_short: row.position_short || '', phone: row.phone || '' };
 }
 
 export async function activeTimetable() {
@@ -41,4 +42,8 @@ export async function activeTimetable() {
 export async function rankData() {
   const d = await q(sb.rpc('sub_rank_data'));
   return { records: d?.records || [], requests: d?.requests || [] };
+}
+
+export async function settings() {
+  return (await q(sb.from('sub_settings').select('*').eq('id', 1)))[0] || {};
 }

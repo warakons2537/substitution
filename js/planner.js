@@ -8,6 +8,9 @@ import { esc, dowIndex, weekStart, addDays, thDate, thDay } from './util.js';
 import { slotsOf, realTeachers, gradeLabel } from './timetable.js';
 
 export const NONE = '__none';
+// คำมาตรฐานสำหรับช่องหมายเหตุ (งานที่มอบให้ผู้สอนแทน)
+export const NOTE_PRESETS = ['ทำใบงาน', 'ทำแบบฝึกหัด', 'สอนตามแผนการจัดการเรียนรู้', 'ทบทวนบทเรียน',
+  'อ่านหนังสือ/ค้นคว้า', 'ทำงานที่ได้รับมอบหมาย', 'ทดสอบย่อย', 'ดูแลความเรียบร้อย'];
 
 /** คาบที่ครู absent ต้องมีคนสอนแทน ในช่วงวันที่ dates (periods ว่าง = ทุกคาบ) */
 export function buildItems(data, absent, dates, periods = []) {
@@ -17,7 +20,7 @@ export function buildItems(data, absent, dates, periods = []) {
     for (const s of slotsOf(data, absent, d)) {
       if (periods.length && !periods.includes(s.p)) continue;
       items.push({ date, d, p: s.p, grade: gradeLabel(s), subject: s.subject, building: s.building,
-        co: s.teachers.filter((t) => t !== absent), sel: '' });
+        co: s.teachers.filter((t) => t !== absent), sel: '', note: '' });
     }
   }
   return items;
@@ -85,7 +88,7 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
   const draw = () => {
     if (!items.length) { el.innerHTML = '<p class="muted">ไม่มีคาบสอนในวัน/คาบที่เลือก (ตามตารางสอนที่ใช้อยู่)</p>'; return; }
     el.innerHTML = `<div class="table-wrap"><table class="tbl planner">
-      <thead><tr><th>วันที่</th><th>คาบ</th><th>ชั้น</th><th>วิชา</th><th>ครูสอนแทน</th></tr></thead><tbody>
+      <thead><tr><th>วันที่</th><th>คาบ</th><th>ชั้น</th><th>วิชา</th><th>ครูสอนแทน</th><th>หมายเหตุ</th></tr></thead><tbody>
       ${items.map((it, i) => {
         const list = rankOf(it, items);
         const cur = list.find((c) => c.n === it.sel);
@@ -94,17 +97,23 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
         return `<tr><td>${esc(thDay(it.date))} ${esc(thDate(it.date))}</td><td class="c">${it.p}</td>
           <td>${esc(it.grade)}</td><td>${esc(it.subject)}${coNote}</td>
           <td><select data-i="${i}" class="sel-sub">
-            <option value="">${allowEmpty ? '— ไม่เสนอ (ให้ฝ่ายวิชาการจัด) —' : '— เลือกครูสอนแทน —'}</option>
+            <option value="">${allowEmpty ? '— ให้ฝ่ายวิชาการจัด —' : '— เลือกครูสอนแทน —'}</option>
             <option value="${NONE}"${it.sel === NONE ? ' selected' : ''}>ไม่ต้องสอนแทน</option>
             <optgroup label="แนะนำ (เรียงตามลำดับ)">
               ${list.filter((c) => c.ok).map((c) => `<option value="${esc(c.n)}"${c.n === it.sel ? ' selected' : ''}>${esc(label(c))}</option>`).join('')}
             </optgroup>
             <optgroup label="ไม่ว่าง">
               ${list.filter((c) => !c.ok).map((c) => `<option value="${esc(c.n)}" ${c.n === it.sel ? 'selected' : 'disabled'}>${esc(c.n)} · ${esc(c.reasons.join(', '))}</option>`).join('')}
-            </optgroup></select>${warn}</td></tr>`;
-      }).join('')}</tbody></table></div>`;
+            </optgroup></select>${warn}</td>
+          <td><input class="note-in" data-i="${i}" list="note-presets" value="${esc(it.note || '')}" placeholder="เช่น ทำใบงาน" maxlength="100"></td></tr>`;
+      }).join('')}</tbody></table></div>
+      <datalist id="note-presets">${NOTE_PRESETS.map((n) => `<option value="${esc(n)}">`).join('')}</datalist>`;
+    el.querySelectorAll('.note-in').forEach((x) => x.addEventListener('input', () => { items[+x.dataset.i].note = x.value.trim(); }));
     el.querySelectorAll('.sel-sub').forEach((s) => s.addEventListener('change', () => { items[+s.dataset.i].sel = s.value; draw(); }));
   };
   draw();
   return { items, valid: () => items.every((it) => it.sel) };
 }
+
+/** หมายเหตุที่จะบันทึก */
+export const noteOf = (it) => it.note || (it.sel === NONE ? 'ไม่ต้องสอนแทน' : '');
