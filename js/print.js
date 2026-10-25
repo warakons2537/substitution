@@ -7,8 +7,8 @@ import { BRAND } from './config.js';
 import { sb, q, settings, activeTimetable } from './db.js';
 
 const DAYS = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
-const MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-const dmy = (s) => { const d = parseISO(s); return `${d.getDate()} ${MONTHS[d.getMonth()]} พ.ศ. ${d.getFullYear() + 543}`; };
+export const MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+export const dmy = (s) => { const d = parseISO(s); return `${d.getDate()} ${MONTHS[d.getMonth()]} พ.ศ. ${d.getFullYear() + 543}`; };
 const fullDay = (s, sp = '') => `วัน${DAYS[parseISO(s).getDay()]}${sp}ที่ ${dmy(s)}`;
 const fiscalYear = (s) => { const d = parseISO(s); return d.getFullYear() + 543 + (d.getMonth() >= 9 ? 1 : 0); };
 
@@ -108,14 +108,29 @@ export async function printRequest(req, me) {
     let html = LEAVE[req.leave_type] ? leavePage(req, me, s, history) : '';
     html += dates.map((d) => subPage(d, recs.filter((r) => r.sub_date === d), req, me, s, periods)).join('');
     if (!html) { toast('ไม่มีข้อมูลสำหรับพิมพ์', 'err'); return; }
-    let root = document.getElementById('print-root');
-    if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
-    root.innerHTML = html;
-    await Promise.race([
-      Promise.all([document.fonts.load("16pt 'WL TH SarabunPSK'"), document.fonts.load("bold 16pt 'WL TH SarabunPSK'"),
-        ...[...root.querySelectorAll('img')].map((i) => (i.complete ? 1 : new Promise((r) => { i.onload = r; i.onerror = r; })))]),
-      new Promise((r) => setTimeout(r, 6000)),
-    ]);
-    window.print();
+    await printHtml(html);
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+/** วาง HTML ลง #print-root รอฟอนต์/รูป แล้วสั่งพิมพ์ */
+export async function printHtml(html) {
+  let root = document.getElementById('print-root');
+  if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
+  root.innerHTML = html;
+  await Promise.race([
+    Promise.all([document.fonts.load("16pt 'WL TH SarabunPSK'"), document.fonts.load("bold 16pt 'WL TH SarabunPSK'"),
+      ...[...root.querySelectorAll('img')].map((i) => (i.complete ? 1 : new Promise((r) => { i.onload = r; i.onerror = r; })))]),
+    new Promise((r) => setTimeout(r, 6000)),
+  ]);
+  window.print();
+}
+
+/** ฝ่ายวิชาการพิมพ์บันทึกการสอนแทนแทนครู: groups = [{ date, recs, leave_type, teacher: {full_name, position_short} }] */
+export async function printSubNotes(groups) {
+  try {
+    const [s, tt] = await Promise.all([settings(), activeTimetable()]);
+    const nP = tt?.data?.periods || Math.max(6, ...groups.flatMap((g) => g.recs.map((r) => r.period)));
+    const periods = Array.from({ length: nP }, (_, i) => i + 1);
+    await printHtml(groups.map((g) => subPage(g.date, g.recs, { leave_type: g.leave_type }, g.teacher, s, periods)).join(''));
   } catch (e) { toast(e.message, 'err'); }
 }

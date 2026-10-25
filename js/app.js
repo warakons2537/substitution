@@ -10,6 +10,7 @@ import * as users from './views/users.js';
 import * as profile from './views/profile.js';
 import * as setts from './views/settings.js';
 import * as audit from './views/audit.js';
+import * as reports from './views/reports.js';
 
 const root = $('#app');
 
@@ -18,6 +19,7 @@ const STAFF = [
   ['assist', 'ช่วยจัดครูสอนแทน', assist.render, true],
   ['requests', 'คำขอสอนแทน', requests.render, true],
   ['records', 'บันทึกการสอนแทน', records.render, true],
+  ['reports', 'รายงาน', reports.render, true],
   ['import', 'นำเข้าตารางสอน', imp.render, false],
 ];
 const MINE = ['profile', 'ข้อมูลของฉัน', profile.render, false];

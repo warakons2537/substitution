@@ -118,3 +118,8 @@ label { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; color
 #print-root .ptypes { display: flex; justify-content: space-between; margin: 8pt 0; }
 #print-root .ptt td { height: 26pt; }
 #print-root .psigns { margin-top: 22pt; text-align: center; }
+/* รายงานสรุป */
+#print-root .pgrid.prep th, #print-root .pgrid.prep td { font-size: 14pt; padding: 0 4pt; }
+#print-root .pwrap { width: 100%; border-collapse: collapse; }
+#print-root .pwrap > tbody > tr > td { vertical-align: top; width: 50%; padding: 0 4pt; }
+#print-root .pwrap.psigns td { text-align: center; }

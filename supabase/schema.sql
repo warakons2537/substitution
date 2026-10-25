@@ -138,8 +138,9 @@ language sql stable security definer set search_path = public as $$
   ) end
 $$;
 
--- รายชื่อบัญชีทั้งหมด (จาก WL Admin) + สิทธิ์ในระบบสอนแทน — เฉพาะผู้ดูแลระบบ
-create or replace function public.sub_list_users()
+-- รายชื่อบัญชีทั้งหมด (จาก WL Admin) + สิทธิ์ในระบบสอนแทน — เฉพาะผู้ดูแลระบบ (ถูกแทนด้วยรุ่นใหม่ในส่วนรอบ 2 ด้านล่าง)
+drop function if exists public.sub_list_users();
+create function public.sub_list_users()
 returns table (user_id uuid, email text, full_name text, role text, teacher_name text)
 language sql stable security definer set search_path = public as $$
   select p.id, p.email, p.full_name, s.role, s.teacher_name
@@ -277,3 +278,14 @@ language sql stable security definer set search_path = public as $$
   order by p.full_name, p.email
 $$;
 grant execute on function public.sub_list_users() to authenticated;
+
+-- =====================================================================
+--  รอบ 2 ส่วนที่ 2: รายงาน — ฝ่ายวิชาการ/ผู้ดูแลพิมพ์บันทึกการสอนแทนแทนครู (ต้องใช้ชื่อ-ตำแหน่งของครูที่ลา)
+-- =====================================================================
+create or replace function public.sub_teacher_profiles()
+returns table (teacher_name text, full_name text, position_short text)
+language sql stable security definer set search_path = public as $$
+  select teacher_name, full_name, position_short from public.sub_users
+  where public.sub_is_staff() and teacher_name <> ''
+$$;
+grant execute on function public.sub_teacher_profiles() to authenticated;
