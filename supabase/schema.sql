@@ -221,3 +221,59 @@ create trigger sub_users_touch before update on public.sub_users for each row ex
 grant execute on function public.sub_role(), public.sub_is_admin(), public.sub_is_staff(), public.sub_is_member(),
   public.sub_my_teacher(), public.sub_rank_data(), public.sub_list_users(),
   public.sub_save_profile(text, text, text, text) to authenticated;
+
+-- =====================================================================
+--  รอบ 2 ส่วนที่ 3: Audit log (บันทึกการใช้งาน) + ข้อมูลผู้ใช้เพิ่มเติม
+-- =====================================================================
+create table if not exists public.sub_audit (
+  id       bigint generated always as identity primary key,
+  at       timestamptz not null default now(),
+  user_id  uuid,
+  email    text not null default '',
+  tbl      text not null,
+  op       text not null check (op in ('INSERT','UPDATE','DELETE')),
+  row_id   text not null default '',
+  old_data jsonb,
+  new_data jsonb
+);
+create index if not exists sub_audit_at on public.sub_audit (at desc);
+alter table public.sub_audit enable row level security;
+drop policy if exists sub_audit_read on public.sub_audit;
+-- ผู้ดูแลระบบอ่านได้อย่างเดียว (ไม่มี policy เพิ่ม/แก้/ลบ — trigger เป็นผู้เขียนเท่านั้น)
+create policy sub_audit_read on public.sub_audit for select using (public.sub_is_admin());
+revoke insert, update, delete, truncate on public.sub_audit from anon, authenticated;
+
+create or replace function public.sub_audit_trg() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare o jsonb; n jsonb; j jsonb;
+begin
+  if tg_op <> 'INSERT' then o := to_jsonb(old); end if;
+  if tg_op <> 'DELETE' then n := to_jsonb(new); end if;
+  if tg_table_name = 'sub_timetables' then o := o - 'data'; n := n - 'data'; end if;  -- ไม่เก็บก้อนตารางสอน
+  if tg_op = 'UPDATE' and (o - 'updated_at') = (n - 'updated_at') then return null; end if;  -- ไม่มีอะไรเปลี่ยน
+  j := coalesce(n, o);
+  insert into public.sub_audit (user_id, email, tbl, op, row_id, old_data, new_data)
+  values (auth.uid(), coalesce(auth.jwt() ->> 'email', ''), tg_table_name, tg_op,
+          coalesce(j ->> 'id', j ->> 'user_id', ''), o, n);
+  return null;
+end $$;
+
+do $$ declare t text; begin
+  foreach t in array array['sub_records','sub_requests','sub_users','sub_settings','sub_timetables'] loop
+    execute format('drop trigger if exists %I on public.%I', t || '_audit', t);
+    execute format('create trigger %I after insert or update or delete on public.%I for each row execute function public.sub_audit_trg()', t || '_audit', t);
+  end loop;
+end $$;
+
+-- รายชื่อผู้ใช้: เพิ่มข้อมูลแบบพิมพ์ (ชื่อ-สกุล ตำแหน่ง เบอร์โทร) เพื่อดูว่าใครยังไม่กรอก
+drop function if exists public.sub_list_users();
+create function public.sub_list_users()
+returns table (user_id uuid, email text, full_name text, role text, teacher_name text,
+               print_name text, "position" text, position_short text, phone text)
+language sql stable security definer set search_path = public as $$
+  select p.id, p.email, p.full_name, s.role, s.teacher_name, s.full_name, s.position, s.position_short, s.phone
+  from public.profiles p left join public.sub_users s on s.user_id = p.id
+  where public.sub_is_admin()
+  order by p.full_name, p.email
+$$;
+grant execute on function public.sub_list_users() to authenticated;
