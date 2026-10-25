@@ -23,20 +23,30 @@ const NAV = {
   requester: [['request', 'แจ้งขอลา/ขอสอนแทน', request.render, true], ['mine', 'คำขอของฉัน', request.renderMine, false]],
 };
 
-function loginPage() {
+function loginPage(mode = 'in') {
+  const up = mode === 'up';
   root.innerHTML = `<div class="login"><div class="login-card">
     <img src="img/logo-full.png" alt="" class="login-logo" onerror="this.src='img/logo-512.png'">
     <h1>${esc(BRAND.name)}</h1><p class="muted">${esc(BRAND.tagline)}</p>
+    <div class="tabs"><button data-m="in" class="${up ? '' : 'on'}">เข้าสู่ระบบ</button>
+      <button data-m="up" class="${up ? 'on' : ''}">สมัครใช้งาน (ครู)</button></div>
     <form id="f-login">
+      ${up ? '<label>ชื่อ-นามสกุล<input type="text" name="name" required></label>' : ''}
       <label>อีเมล<input type="email" name="email" autocomplete="username" required></label>
-      <label>รหัสผ่าน<input type="password" name="password" autocomplete="current-password" required></label>
-      <button class="btn btn-primary" type="submit">เข้าสู่ระบบ</button>
-      <p class="muted small">ใช้บัญชีเดียวกับ WL Admin</p>
+      <label>รหัสผ่าน<input type="password" name="password" minlength="6" autocomplete="${up ? 'new-password' : 'current-password'}" required></label>
+      <button class="btn btn-primary" type="submit">${up ? 'สมัครใช้งาน' : 'เข้าสู่ระบบ'}</button>
+      <p class="muted small">${up ? 'สมัครแล้วต้องรอผู้ดูแลระบบกำหนดสิทธิ์ก่อนจึงจะใช้งานได้ · บัญชีนี้ใช้กับ WL Admin ได้ด้วย' : 'ใช้บัญชีเดียวกับ WL Admin'}</p>
     </form><p class="ver">v${VERSION}</p></div></div>`;
+  $$('[data-m]').forEach((b) => b.addEventListener('click', () => loginPage(b.dataset.m)));
   $('#f-login').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target).entries());
-    try { await auth.signIn(f.email, f.password); boot(); } catch (err) { toast(err.message, 'err'); }
+    try {
+      if (!up) { await auth.signIn(f.email, f.password); boot(); return; }
+      const r = await auth.signUp(f.email, f.password, f.name);
+      if (r.session) boot();
+      else { toast('สมัครแล้ว กรุณายืนยันอีเมลจากกล่องจดหมาย แล้วกลับมาเข้าสู่ระบบ'); loginPage('in'); }
+    } catch (err) { toast(err.message, 'err'); }
   });
 }
 

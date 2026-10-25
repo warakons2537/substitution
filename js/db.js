@@ -24,6 +24,7 @@ export async function q(p) {
 export const auth = {
   async user() { const { data } = await sb.auth.getSession(); return data.session?.user || null; },
   signIn: (email, password) => q(sb.auth.signInWithPassword({ email, password })),
+  signUp: (email, password, full_name) => q(sb.auth.signUp({ email, password, options: { data: { full_name } } })),
   signOut: () => sb.auth.signOut(),
 };
 
