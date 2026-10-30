@@ -62,6 +62,7 @@ function shell(me) {
       <div class="brand"><img src="img/logo-192.png" alt=""><div><b>${esc(BRAND.name)}</b><span>${esc(BRAND.school)}</span></div></div>
       <nav>${nav.map(([h, t]) => `<a href="#${h}" data-h="${h}">${esc(t)}</a>`).join('')}</nav>
       <div class="side-foot"><div>${esc(me.teacher || me.email)}</div><div class="small">${ROLES[me.role]}</div>
+        <a class="btn btn-sm" href="../" style="text-decoration:none">ทางเข้า WL (ทุกแอป)</a>
         <button class="btn btn-sm" id="logout">ออกจากระบบ</button><div class="ver">v${VERSION}</div></div>
     </aside><main class="main"><div class="topline" id="tt-line"></div><div id="view"></div></main></div>`;
   $('#logout').addEventListener('click', async () => { await auth.signOut(); location.hash = ''; boot(); });
