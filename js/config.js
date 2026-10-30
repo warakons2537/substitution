@@ -11,7 +11,7 @@ export const BRAND = {
   school: 'บ้านวังลึก(ยุวนาฏชนูทิศ)',
 };
 // เปลี่ยนทุกครั้งที่ส่งไฟล์อัปเดต
-export const VERSION = '2569.10.30-2';
+export const VERSION = '2569.10.30-3';
 
 export const LEAVE_TYPES = ['ลากิจ', 'ลาป่วย', 'ไปราชการ', 'ลาคลอด', 'ไม่ระบุ'];
 export const ROLES = { admin: 'ผู้ดูแลระบบ', academic: 'ฝ่ายวิชาการ', requester: 'ผู้ขอลา' };

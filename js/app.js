@@ -32,6 +32,7 @@ const NAV = {
 function loginPage(mode = 'in') {
   const up = mode === 'up';
   root.innerHTML = `<div class="login"><div class="login-card">
+    <a class="login-back" href="../" title="กลับหน้าทางเข้า Wangluek (Y.N.) Connected">← กลับหน้าทางเข้า</a>
     <img src="img/logo-full.png" alt="" class="login-logo" onerror="this.src='img/logo-512.png'">
     <h1>${esc(BRAND.name)}</h1><p class="muted">${esc(BRAND.tagline)}</p>
     <div class="tabs"><button data-m="in" class="${up ? '' : 'on'}">เข้าสู่ระบบ</button>
