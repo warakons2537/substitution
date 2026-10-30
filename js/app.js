@@ -81,7 +81,7 @@ async function route() {
     view.innerHTML = `<h2>${esc(item[1])}</h2><div class="card"><p>ยังไม่มีตารางสอนในระบบ ${ctx.me.role === 'requester' ? 'กรุณาแจ้งฝ่ายวิชาการ' : 'กรุณานำเข้าตารางสอนก่อน'}</p></div>`;
     return;
   }
-  view.innerHTML = '<p class="muted">กำลังโหลด…</p>';
+  view.innerHTML = '<div class="loading" role="status"><i class="bar"></i><span>กำลังโหลด…</span></div>';
   try { await item[2](view, ctx); } catch (e) { view.innerHTML = `<div class="card"><p class="warn">${esc(e.message)}</p></div>`; }
 }
 
