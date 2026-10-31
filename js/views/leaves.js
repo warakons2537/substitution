@@ -1,7 +1,7 @@
 // ทะเบียนการลา: ฝ่ายวิชาการ/ผู้ดูแลเห็นทุกคน · ครูเห็นของตัวเอง
 import { $, $$, esc, opts, toast, todayISO, thDate, modal, confirmBox } from '../util.js';
-import { sb, q } from '../db.js';
-import { LEAVE_STATUS } from '../config.js';
+import { sb, q, settings } from '../db.js';
+import { has } from '../perm.js';
 import { realTeachers } from '../timetable.js';
 import { loadRules, countDays, usage, fiscalYear, fiscalRange, fmtDays } from '../leaves.js';
 
@@ -9,9 +9,10 @@ const NAME_KEY = 'wlsub-leave-filter';
 
 export async function render(el, ctx) {
   const { me } = ctx;
-  const staff = me.role !== 'requester';
-  const admin = me.role === 'admin';
-  const rules = await loadRules();
+  const staff = has(me, 'hr') || has(me, 'director');   // เห็นทะเบียนทุกคน (ฝ่ายวิชาการเห็นเฉพาะของตัวเอง)
+  const hr = has(me, 'hr'); const admin = has(me, 'admin');
+  const [rules, cfg] = await Promise.all([loadRules(), settings()]);
+  const LEAVE_STATUS = { pending: 'รออนุญาต', approved: cfg.leave_approval === 'director' ? 'อนุญาตแล้ว' : 'บันทึกแล้ว', rejected: 'ไม่อนุญาต', cancelled: 'ยกเลิก' };
   const saved = JSON.parse(sessionStorage.getItem(NAME_KEY) || '{}');
   const fy = saved.fy || fiscalYear(todayISO());
   const teacherF = staff ? (saved.teacher || '') : me.teacher;
@@ -53,35 +54,31 @@ export async function render(el, ctx) {
       <label>ปีงบประมาณ (พ.ศ.)<select id="lv-fy">${opts(years, fy)}</select></label>
       ${staff ? `<label>ครู<select id="lv-t"><option value="">ทั้งหมด</option>${opts(names, teacherF)}</select></label>` : ''}
       <label>ประเภท<select id="lv-ty"><option value="">ทั้งหมด</option>${opts(types.map((t) => t.leave_type), typeF)}</select></label></div>
-      <button class="btn btn-primary" id="lv-add">+ บันทึกการลา</button></div>
+      ${hr || me.teacher ? '<button class="btn btn-primary" id="lv-add">+ บันทึกการลา</button>' : ''}</div>
       <p class="muted small">ปีงบประมาณ ${fy}: ${esc(thDate(from))} – ${esc(thDate(to))} · นับวันทำการ จันทร์–ศุกร์ ไม่รวมวันหยุดที่ตั้งไว้ · ยอดรวมการลาที่ "รอตรวจ" และ "บันทึกแล้ว"</p></div>
     <div class="card"><h3>${teacherF || !staff ? `สรุปการลา${teacherF ? ` · ${esc(teacherF)}` : ''}` : 'สรุปการลารายครู (วัน)'}</h3>${summary}</div>
     <div class="card"><h3>รายการ (${rows.length})</h3>${rows.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>วันที่</th>${staff ? '<th>ครู</th>' : ''}<th>ประเภท</th><th class="c">วัน</th><th>เหตุผล</th><th>สถานะ</th><th></th></tr></thead><tbody>
-      ${rows.map((l) => { const canDel = admin || (!staff && l.status === 'pending' && !l.request_id); const canEdit = staff || (l.status === 'pending' && !l.request_id);
+      ${rows.map((l) => { const canDel = admin || (!staff && l.status === 'pending' && !l.request_id); const canEdit = hr || (!l.request_id && ['pending', 'approved'].includes(l.status) && l.teacher_name === me.teacher);
         return `<tr><td class="nowrap">${esc(l.date_from === l.date_to ? thDate(l.date_from) : `${thDate(l.date_from)} – ${thDate(l.date_to)}`)}${l.half ? ` <span class="small muted">(${l.half === 'am' ? 'เช้า' : 'บ่าย'})</span>` : ''}</td>
           ${staff ? `<td>${esc(l.teacher_name)}</td>` : ''}<td>${esc(l.leave_type)}${l.has_cert ? ' <span class="chip chip-ok" title="มีใบรับรองแพทย์">ใบรับรองแพทย์</span>' : ''}</td>
           <td class="c">${fmtDays(l.days)}</td><td>${esc(l.reason)}${l.request_id ? ' <span class="chip chip-info">จากคำขอ</span>' : ''}</td>
-          <td><span class="badge ${l.status}">${LEAVE_STATUS[l.status]}</span></td>
-          <td class="nowrap">${staff && l.status === 'pending' ? `<button class="btn btn-sm btn-primary" data-ok="${l.id}">บันทึกแล้ว</button> ` : ''}
-            ${canEdit ? `<button class="btn btn-sm" data-edit="${l.id}">แก้ไข</button> ` : ''}${canDel ? `<button class="btn btn-sm btn-danger" data-del="${l.id}">ลบ</button>` : ''}</td></tr>`; }).join('')}
+          <td><span class="badge ${l.status}">${LEAVE_STATUS[l.status]}</span>${staff && l.signed_at ? ' <span class="chip chip-ok" title="เซ็นเอกสารแล้ว">เซ็นแล้ว</span>' : ''}</td>
+          <td class="nowrap">${canEdit ? `<button class="btn btn-sm" data-edit="${l.id}">แก้ไข</button> ` : ''}${canDel ? `<button class="btn btn-sm btn-danger" data-del="${l.id}">ลบ</button>` : ''}</td></tr>`; }).join('')}
       </tbody></table></div>` : '<p class="muted">ไม่มีรายการ</p>'}</div>`;
 
   const keep = () => sessionStorage.setItem(NAME_KEY, JSON.stringify({ fy: +$('#lv-fy', el).value, teacher: $('#lv-t', el)?.value || '', type: $('#lv-ty', el).value }));
   ['#lv-fy', '#lv-t', '#lv-ty'].forEach((s) => $(s, el)?.addEventListener('change', () => { keep(); render(el, ctx); }));
-  $('#lv-add', el).addEventListener('click', () => edit(null));
+  $('#lv-add', el)?.addEventListener('click', () => edit(null));
   $$('[data-edit]', el).forEach((b) => b.addEventListener('click', () => edit(all.find((l) => l.id === b.dataset.edit))));
-  $$('[data-ok]', el).forEach((b) => b.addEventListener('click', async () => {
-    try { await q(sb.from('sub_leaves').update({ status: 'approved' }).eq('id', b.dataset.ok)); toast('บันทึกแล้ว'); render(el, ctx); } catch (e) { toast(e.message, 'err'); }
-  }));
   $$('[data-del]', el).forEach((b) => b.addEventListener('click', async () => {
     if (!(await confirmBox('ลบรายการลานี้?'))) return;
     try { await q(sb.from('sub_leaves').delete().eq('id', b.dataset.del)); toast('ลบแล้ว'); render(el, ctx); } catch (e) { toast(e.message, 'err'); }
   }));
 
   async function edit(l) {
-    const v = l || { teacher_name: teacherF || me.teacher || '', leave_type: 'ลากิจ', date_from: todayISO(), date_to: todayISO(), half: '', status: staff ? 'approved' : 'pending' };
+    const v = l || { teacher_name: teacherF || me.teacher || '', leave_type: 'ลากิจ', date_from: todayISO(), date_to: todayISO(), half: '', status: 'approved' };
     const p = modal(l ? 'แก้ไขการลา' : 'บันทึกการลา', `
-      <label>ครู${staff ? `<select name="teacher_name" required><option value="">— เลือก —</option>${opts(names, v.teacher_name)}</select>` : `<input value="${esc(me.teacher)}" disabled>`}</label>
+      <label>ครู${hr ? `<select name="teacher_name" required><option value="">— เลือก —</option>${opts(names, v.teacher_name)}</select>` : `<input value="${esc(me.teacher)}" disabled>`}</label>
       <label>ประเภทการลา<select name="leave_type">${opts(types.filter((t) => t.active || t.leave_type === v.leave_type).map((t) => t.leave_type), v.leave_type)}</select></label>
       <div class="form-grid"><label>ตั้งแต่วันที่<input type="date" name="date_from" value="${v.date_from}" required></label>
         <label>ถึงวันที่<input type="date" name="date_to" value="${v.date_to}" required></label>
@@ -90,7 +87,7 @@ export async function render(el, ctx) {
       <label>ระหว่างลาติดต่อได้ที่<input name="contact" maxlength="200" value="${esc(v.contact || '')}"></label>
       <label class="chk"><input type="checkbox" name="has_cert" ${v.has_cert ? 'checked' : ''}> มีใบรับรองแพทย์</label>
       <label>หมายเหตุ<input name="note" maxlength="300" value="${esc(v.note || '')}"></label>
-      ${staff ? `<label>สถานะ<select name="status">${opts(Object.entries(LEAVE_STATUS), v.status)}</select></label>` : ''}
+      ${hr ? `<label>สถานะ<select name="status">${opts(Object.entries(LEAVE_STATUS), v.status)}</select></label>` : ''}
       <p class="note" id="lv-prev" style="display:block"></p>`, { okText: 'บันทึก' });
     setTimeout(() => {
       const f = $('.modal-wrap form'); if (!f) return;
@@ -98,7 +95,7 @@ export async function render(el, ctx) {
       const upd = () => {
         if (fx('half').value) fx('date_to').value = fx('date_from').value;
         if (fx('date_to').value < fx('date_from').value) fx('date_to').value = fx('date_from').value;
-        const name = staff ? fx('teacher_name').value : me.teacher; const type = fx('leave_type').value;
+        const name = hr ? fx('teacher_name').value : me.teacher; const type = fx('leave_type').value;
         const d = countDays(rules, fx('date_from').value, fx('date_to').value, type, fx('half').value);
         const t = rules.byType[type]; const u = usage(all.filter((x) => x.teacher_name === name && x.id !== l?.id), fiscalYear(fx('date_from').value))[type]?.used || 0;
         const left = t?.quota_days == null ? null : t.quota_days - u - d;
@@ -107,12 +104,12 @@ export async function render(el, ctx) {
       f.addEventListener('input', upd); f.addEventListener('change', upd); upd();
     }, 0);
     const r = await p; if (!r) return;
-    const row = { teacher_name: staff ? r.teacher_name : me.teacher, leave_type: r.leave_type, date_from: r.date_from, date_to: r.half ? r.date_from : r.date_to,
+    const row = { teacher_name: hr ? r.teacher_name : me.teacher, leave_type: r.leave_type, date_from: r.date_from, date_to: r.half ? r.date_from : r.date_to,
       half: r.half, reason: (r.reason || '').trim(), contact: (r.contact || '').trim(), has_cert: r.has_cert === 'on', note: (r.note || '').trim() };
-    if (staff) row.status = r.status;
+    if (hr && r.status) row.status = r.status;
     try {
       if (l) await q(sb.from('sub_leaves').update(row).eq('id', l.id));
-      else await q(sb.from('sub_leaves').insert({ ...row, status: staff ? 'approved' : 'pending' }));
+      else await q(sb.from('sub_leaves').insert({ ...row, status: 'approved' }));   // ครูบันทึกเอง: ฐานข้อมูลกำหนดสถานะตามโหมดการอนุญาต
       toast('บันทึกแล้ว'); render(el, ctx);
     } catch (e) { toast(e.message, 'err'); }
   }

@@ -1,21 +1,21 @@
 // ฝ่ายวิชาการ: พิจารณาคำขอลา/ขอสอนแทน
 import { $, $$, esc, toast, dateRange } from '../util.js';
-import { sb, q, rankData } from '../db.js';
+import { sb, q, rankData, REQ_COLS } from '../db.js';
 import { buildItems, mountPlanner, NONE, noteOf } from '../planner.js';
 import { STATUS, periodText, dateText } from './request.js';
 
 export async function render(el, ctx) {
   const show = sessionStorage.getItem('wlsub-reqfilter') || 'pending';
-  let qy = sb.from('sub_requests').select('*').order('date_from', { ascending: show === 'pending' }).limit(200);
+  let qy = sb.from('sub_requests').select(REQ_COLS).order('date_from', { ascending: show === 'pending' }).limit(200);
   if (show === 'pending') qy = qy.eq('status', 'pending');
   const list = await q(qy);
-  el.innerHTML = `<h2>คำขอสอนแทน</h2>
+  el.innerHTML = `<h2>คิวสอนแทน</h2>
     <div class="card"><div class="row-between"><div class="tabs">
       <button data-f="pending" class="${show === 'pending' ? 'on' : ''}">รอพิจารณา</button>
       <button data-f="all" class="${show === 'all' ? 'on' : ''}">ทั้งหมด</button></div></div>
-    ${list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>ครูที่ลา</th><th>วันที่ลา</th><th>คาบ</th><th>ประเภท</th><th>เหตุผล</th><th>สถานะ</th><th></th></tr></thead><tbody>
+    ${list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>ครูที่ลา</th><th>วันที่ลา</th><th>คาบ</th><th>ประเภท</th><th>สถานะ</th><th></th></tr></thead><tbody>
       ${list.map((r) => `<tr><td>${esc(r.teacher_name)}</td><td>${esc(dateText(r))}</td><td>${esc(periodText(r))}</td>
-        <td>${esc(r.leave_type)}</td><td>${esc(r.reason)}</td><td><span class="badge ${r.status}">${STATUS[r.status]}</span></td>
+        <td>${esc(r.leave_type)}</td><td><span class="badge ${r.status}">${STATUS[r.status]}</span></td>
         <td>${r.status === 'pending' ? `<button class="btn btn-sm btn-primary" data-open="${r.id}">พิจารณา</button>` : ''}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="muted">ไม่มีคำขอ</p>'}</div>
     <div id="rq-detail"></div>`;
@@ -35,7 +35,6 @@ async function openReq(el, ctx, req) {
     if (p) { it.sel = p.substitute_teacher || NONE; it.note = p.note === 'ไม่ต้องสอนแทน' ? '' : p.note; }
   }
   box.innerHTML = `<div class="card"><h3>${esc(req.teacher_name)} · ${esc(dateText(req))} · ${esc(periodText(req))} · ${esc(req.leave_type)}</h3>
-    ${req.reason ? `<p>เหตุผล: ${esc(req.reason)}</p>` : ''}
     <p class="muted small">ค่าที่เลือกไว้ = ที่ผู้ขอลาเลือกแล้ว (คาบที่ให้ฝ่ายวิชาการจัด ระบบเลือกให้) เปลี่ยนได้ก่อนอนุมัติ</p>
     <div id="rq-plan"></div>
     <label>หมายเหตุถึงผู้ขอลา<input id="rq-note" maxlength="300"></label>

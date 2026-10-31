@@ -29,9 +29,10 @@ export const auth = {
 };
 
 export async function loadMe(user) {
-  const role = await q(sb.rpc('sub_role'));
+  const [role, duties] = await Promise.all([q(sb.rpc('sub_role')), q(sb.rpc('sub_duties')).catch(() => null)]);
   const row = (await q(sb.from('sub_users').select('teacher_name,full_name,position,position_short,phone').eq('user_id', user.id)))[0] || {};
-  return { id: user.id, email: user.email, role, teacher: row.teacher_name || '',
+  return { id: user.id, email: user.email, role,
+    duties: Array.isArray(duties) ? duties : (role === 'admin' ? ['admin'] : role === 'academic' ? ['academic'] : []), teacher: row.teacher_name || '',
     full_name: row.full_name || '', position: row.position || '', position_short: row.position_short || '', phone: row.phone || '' };
 }
 
@@ -47,3 +48,6 @@ export async function rankData() {
 export async function settings() {
   return (await q(sb.from('sub_settings').select('*').eq('id', 1)))[0] || {};
 }
+
+/** คอลัมน์ของ sub_requests ที่อ่านได้ (เหตุผล/ที่ติดต่ออยู่ในทะเบียนการลา ฝ่ายวิชาการอ่านไม่ได้) */
+export const REQ_COLS = 'id,teacher_name,date_from,date_to,periods,leave_type,status,requested_by,decided_by,decided_at,decision_note,created_at';

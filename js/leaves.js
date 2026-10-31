@@ -1,6 +1,7 @@
 // ตัวช่วยทะเบียนการลา: ปีงบประมาณ · นับวันลา · ยอดใช้ไป/คงเหลือ  (กติกานับวันต้องตรงกับ public.sub_leave_days ใน schema.sql)
 import { sb, q } from './db.js';
 import { LEAVE_TYPES } from './config.js';
+import { has } from './perm.js';
 import { parseISO, dateRange, dowIndex } from './util.js';
 
 /** ปีงบประมาณ (พ.ศ.): 1 ต.ค. – 30 ก.ย. */
@@ -39,3 +40,13 @@ export function usage(leaves, fy) {
 }
 export const fmtDays = (n) => (Number.isInteger(+n) ? String(+n) : (+n).toFixed(1));
 export const leaveDateText = (l) => (l.date_from === l.date_to ? l.date_from : `${l.date_from} – ${l.date_to}`);
+
+/** ข้อมูลการลาตามช่วงวันที่: งานบุคคล/ผอ. อ่านตารางจริง (มีเหตุผล) · คนอื่นอ่านผ่านฟังก์ชันที่ไม่ส่งเหตุผล/ที่ติดต่อ/ใบรับรองแพทย์ */
+export async function leavesRange(me, from, to) {
+  try {
+    if (has(me, 'hr') || has(me, 'director')) {
+      return await q(sb.from('sub_leaves').select('*').neq('status', 'cancelled').gte('date_from', from).lte('date_from', to).order('date_from').limit(2000));
+    }
+    return await q(sb.rpc('sub_leave_public', { p_from: from, p_to: to }));
+  } catch { return []; }
+}

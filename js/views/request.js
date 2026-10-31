@@ -1,6 +1,6 @@
 // ผู้ขอลา: แจ้งขอลา/ขอสอนแทน + คำขอของฉัน
 import { $, $$, esc, toast, thDate , confirmBox } from '../util.js';
-import { sb, q, rankData } from '../db.js';
+import { sb, q, rankData, REQ_COLS } from '../db.js';
 import { printRequest } from '../print.js';
 import { mountLeaveForm } from '../leaveform.js';
 import { buildItems, mountPlanner, NONE, noteOf } from '../planner.js';
@@ -45,7 +45,7 @@ export async function render(el, { tt, me }) {
         teacher_name: me.teacher, date_from: v.from, date_to: v.to, periods: v.periods,
         leave_type: v.leave_type, reason: v.reason, contact: $('#r-contact').value.trim(),
         status: complete ? 'approved' : 'pending', decision_note: complete ? 'ผู้ขอลาเลือกครูสอนแทนเอง (มีผลทันที)' : '',
-      }).select('*')))[0];
+      }).select(REQ_COLS)))[0];
       const rows = plan.items.filter((it) => it.sel).map((it) => ({
         request_id: req.id, sub_date: it.date, academic_year: tt.academic_year, term: tt.term, period: it.p,
         absent_teacher: me.teacher, leave_type: v.leave_type, grade: it.grade, subject: it.subject,
@@ -61,7 +61,7 @@ export async function render(el, { tt, me }) {
 }
 
 export async function renderMine(el, { me }) {
-  const list = await q(sb.from('sub_requests').select('*').eq('requested_by', me.id).order('date_from', { ascending: false }).limit(100));
+  const list = await q(sb.from('sub_requests').select(REQ_COLS).eq('requested_by', me.id).order('date_from', { ascending: false }).limit(100));
   el.innerHTML = `<h2>คำขอของฉัน</h2><div class="card">${list.length ? `<div class="table-wrap"><table class="tbl">
     <thead><tr><th>วันที่ลา</th><th>คาบ</th><th>ประเภท</th><th>สถานะ</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>
     ${list.map((r) => `<tr><td>${esc(dateText(r))}</td><td>${esc(periodText(r))}</td><td>${esc(r.leave_type)}</td>

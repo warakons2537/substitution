@@ -439,3 +439,290 @@ do $$ declare t text; begin
 end $$;
 
 grant execute on function public.sub_leave_days(date, date, text, text) to authenticated;
+
+-- =====================================================================
+--  รอบ 4: แยก 2 ระบบ (งานบุคคล: ลา / งานวิชาการ: สอนแทน) · สิทธิ์หลายหน้าที่ · การอนุญาตใบลา 2 แบบ · แจ้งเตือนในแอป
+--  รันซ้ำได้
+-- =====================================================================
+
+-- 1) หน้าที่ (duties): ทุกคนที่มีแถวใน sub_users เป็น "ครู" · หน้าที่เสริมเลือกได้หลายอย่าง
+--    admin = ผู้ดูแลระบบ (ทุกอย่าง) · academic = ฝ่ายวิชาการ · hr = งานบุคคล · director = ผู้อำนวยการ
+alter table public.sub_users add column if not exists duties text[] not null default '{}';
+alter table public.sub_users alter column role set default 'requester';
+update public.sub_users set duties = array[role] where role in ('admin','academic') and cardinality(duties) = 0;
+
+-- role (เดิม) คำนวณจาก duties เพื่อให้นโยบายเดิมใช้ต่อได้ · ถ้า duties ว่างแต่ role เป็น admin/academic (ข้อมูลเก่า) ให้เติม duties
+create or replace function public.sub_users_roles() returns trigger language plpgsql as $$
+begin
+  if cardinality(new.duties) = 0 and new.role in ('admin','academic') then new.duties := array[new.role]; end if;
+  new.role := case when 'admin' = any(new.duties) then 'admin' when 'academic' = any(new.duties) then 'academic' else 'requester' end;
+  return new;
+end $$;
+drop trigger if exists sub_users_roles on public.sub_users;
+create trigger sub_users_roles before insert or update on public.sub_users for each row execute function public.sub_users_roles();
+
+create or replace function public.sub_duties() returns text[]
+language sql stable security definer set search_path = public as $$
+  select coalesce((select duties from public.sub_users where user_id = auth.uid()),
+                  case when public.is_admin() then array['admin'] else '{}'::text[] end)
+$$;
+-- มีหน้าที่นี้ (ผู้ดูแลระบบมีทุกหน้าที่)
+create or replace function public.sub_has(d text) returns boolean
+language sql stable security definer set search_path = public as $$
+  select d = any(public.sub_duties()) or 'admin' = any(public.sub_duties())
+$$;
+create or replace function public.sub_is_hr() returns boolean language sql stable as $$ select public.sub_has('hr') $$;
+create or replace function public.sub_is_director() returns boolean language sql stable as $$ select public.sub_has('director') $$;
+grant execute on function public.sub_duties(), public.sub_has(text), public.sub_is_hr(), public.sub_is_director() to authenticated;
+
+-- 2) การอนุญาตใบลา: global (ตั้งต้น = มีผลทันที) + กำหนดรายประเภทได้
+alter table public.sub_settings add column if not exists leave_approval text not null default 'immediate' check (leave_approval in ('immediate','director'));
+alter table public.sub_leave_types add column if not exists approval text check (approval in ('immediate','director'));  -- ว่าง = ใช้ค่ากลาง
+
+create or replace function public.sub_leave_mode(p_type text) returns text
+language sql stable security definer set search_path = public as $$
+  select coalesce((select approval from public.sub_leave_types where leave_type = p_type),
+                  (select leave_approval from public.sub_settings where id = 1), 'immediate')
+$$;
+
+do $$ begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'sub_leaves' and column_name = 'signed_at') then
+    alter table public.sub_leaves add column signed_at timestamptz;        -- เซ็นเอกสารกระดาษแล้ว
+    alter table public.sub_leaves add column checked_by uuid references auth.users(id) on delete set null;   -- งานบุคคลตรวจแล้ว
+    alter table public.sub_leaves add column checked_at timestamptz;
+    alter table public.sub_leaves add column decided_by uuid references auth.users(id) on delete set null;  -- ผอ. อนุญาต/ไม่อนุญาตในระบบ
+    alter table public.sub_leaves add column decided_at timestamptz;
+    alter table public.sub_leaves add column decision_note text not null default '';
+    -- ครั้งเดียว: สถานะเดิม "pending" ของใบลาที่มาจากคำขอ หมายถึงยังจัดครูสอนแทนไม่ครบ ไม่ใช่รออนุญาต -> ถือว่ามีผลแล้ว
+    update public.sub_leaves set status = 'approved' where status = 'pending' and request_id is not null;
+  end if;
+end $$;
+
+-- ตั้งสถานะตามโหมด: ผู้ที่ไม่ใช่งานบุคคล/ผอ. (คือครูบันทึกเอง) -> โหมด director = รออนุญาต · โหมด immediate = มีผลทันที
+create or replace function public.sub_leaves_before() returns trigger language plpgsql as $$
+begin
+  new.days := public.sub_leave_days(new.date_from, new.date_to, new.leave_type, new.half);
+  new.updated_at := now();
+  if auth.uid() is not null and not (public.sub_is_hr() or public.sub_is_director()) and new.status <> 'cancelled' then
+    new.status := case when public.sub_leave_mode(new.leave_type) = 'director' then 'pending' else 'approved' end;
+    if tg_op = 'UPDATE' then new.signed_at := old.signed_at; new.checked_at := old.checked_at; new.checked_by := old.checked_by;
+      new.decided_at := old.decided_at; new.decided_by := old.decided_by; new.decision_note := old.decision_note; end if;
+  end if;
+  return new;
+end $$;
+
+-- คำขอ -> ทะเบียน: สถานะการลาไม่ผูกกับการจัดสอนแทนอีกต่อไป (ยกเว้นยกเลิก)
+create or replace function public.sub_leave_sync() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    insert into public.sub_leaves (teacher_name, leave_type, date_from, date_to, reason, contact, status, request_id, created_by)
+    values (new.teacher_name, new.leave_type, new.date_from, new.date_to, new.reason, new.contact, 'approved', new.id, new.requested_by)
+    on conflict (request_id) where request_id is not null do nothing;
+  elsif new.status = 'cancelled' and old.status <> 'cancelled' then
+    update public.sub_leaves set status = 'cancelled' where request_id = new.id and status <> 'cancelled';
+  end if;
+  return null;
+end $$;
+
+-- 3) ซ่อนเหตุผล/ที่ติดต่อของคำขอจากทุกคนผ่าน API (ฝ่ายวิชาการไม่เห็น) — เหตุผลอยู่ในทะเบียนการลา (sub_leaves) ซึ่งเห็นได้เฉพาะงานบุคคล/ผอ./เจ้าตัว
+--    หมายเหตุ: ถ้าเพิ่มคอลัมน์ใหม่ใน sub_requests ต้อง grant select (คอลัมน์) ให้ authenticated ด้วย
+revoke select on public.sub_requests from anon, authenticated;
+grant select (id, teacher_name, date_from, date_to, periods, leave_type, status, requested_by, decided_by, decided_at, decision_note, created_at)
+  on public.sub_requests to authenticated;
+
+-- 4) นโยบายใหม่ของทะเบียนการลา/ประเภท/วันหยุด (งานบุคคลจัดการ · ฝ่ายวิชาการไม่อ่านตารางนี้โดยตรง)
+do $$ declare r record; begin
+  for r in select policyname, tablename from pg_policies
+           where schemaname = 'public' and tablename in ('sub_leave_types','sub_holidays','sub_leaves') loop
+    execute format('drop policy %I on public.%I', r.policyname, r.tablename);
+  end loop;
+end $$;
+create policy sub_lt_read  on public.sub_leave_types for select using (public.sub_is_member());
+create policy sub_lt_hr    on public.sub_leave_types for all    using (public.sub_is_hr()) with check (public.sub_is_hr());
+create policy sub_hd_read  on public.sub_holidays    for select using (public.sub_is_member());
+create policy sub_hd_hr    on public.sub_holidays    for all    using (public.sub_is_hr()) with check (public.sub_is_hr());
+create policy sub_lv_read on public.sub_leaves for select
+  using (public.sub_is_hr() or public.sub_is_director() or teacher_name = public.sub_my_teacher() or created_by = auth.uid());
+create policy sub_lv_hr_ins on public.sub_leaves for insert with check (public.sub_is_hr());
+create policy sub_lv_hr_upd on public.sub_leaves for update using (public.sub_is_hr()) with check (public.sub_is_hr());
+create policy sub_lv_ins on public.sub_leaves for insert
+  with check (public.sub_is_member() and created_by = auth.uid() and request_id is null and teacher_name = public.sub_my_teacher());
+create policy sub_lv_upd on public.sub_leaves for update
+  using (created_by = auth.uid() and request_id is null and status in ('pending','approved'))
+  with check (created_by = auth.uid() and request_id is null and teacher_name = public.sub_my_teacher());
+create policy sub_lv_del on public.sub_leaves for delete
+  using (public.sub_is_admin() or (created_by = auth.uid() and status = 'pending' and request_id is null));
+
+-- 5) ผู้ดูแลการลา (RPC: สิทธิ์ตรวจในฟังก์ชัน)
+create or replace function public.sub_leave_decide(p_id uuid, p_status text, p_note text default '') returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.sub_is_director() then raise exception 'ไม่มีสิทธิ์ทำรายการนี้'; end if;
+  if p_status not in ('approved','rejected') then raise exception 'สถานะไม่ถูกต้อง'; end if;
+  update public.sub_leaves set status = p_status, decided_by = auth.uid(), decided_at = now(), decision_note = coalesce(p_note, '')
+  where id = p_id and status <> 'cancelled';
+end $$;
+create or replace function public.sub_leave_check(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.sub_is_hr() then raise exception 'ไม่มีสิทธิ์ทำรายการนี้'; end if;
+  update public.sub_leaves set checked_by = auth.uid(), checked_at = now() where id = p_id;
+end $$;
+create or replace function public.sub_leave_sign(p_id uuid, p_signed boolean) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.sub_is_hr() then raise exception 'ไม่มีสิทธิ์ทำรายการนี้'; end if;
+  update public.sub_leaves set signed_at = case when p_signed then now() end where id = p_id;
+end $$;
+-- ข้อมูลการลาแบบไม่มีเหตุผล/ที่ติดต่อ/ใบรับรองแพทย์ สำหรับฝ่ายวิชาการ (ครูทั่วไปได้เฉพาะของตัวเอง)
+create or replace function public.sub_leave_public(p_from date, p_to date)
+returns table (id uuid, teacher_name text, leave_type text, date_from date, date_to date, half text, days numeric, status text, request_id uuid)
+language sql stable security definer set search_path = public as $$
+  select l.id, l.teacher_name, l.leave_type, l.date_from, l.date_to, l.half, l.days, l.status, l.request_id
+  from public.sub_leaves l
+  where public.sub_is_member() and l.date_from between p_from and p_to
+    and (public.sub_has('academic') or public.sub_has('hr') or public.sub_has('director') or l.teacher_name = public.sub_my_teacher())
+  order by l.date_from
+$$;
+grant execute on function public.sub_leave_decide(uuid, text, text), public.sub_leave_check(uuid), public.sub_leave_sign(uuid, boolean),
+  public.sub_leave_public(date, date), public.sub_leave_mode(text) to authenticated;
+
+-- 6) รายชื่อผู้ใช้: เพิ่มคอลัมน์ duties
+drop function if exists public.sub_list_users();
+create function public.sub_list_users()
+returns table (user_id uuid, email text, full_name text, role text, teacher_name text,
+               print_name text, "position" text, position_short text, phone text, staff_id uuid, duties text[])
+language sql stable security definer set search_path = public as $$
+  select p.id, p.email, p.full_name, s.role, s.teacher_name, s.full_name, s.position, s.position_short, s.phone, s.staff_id, s.duties
+  from public.profiles p left join public.sub_users s on s.user_id = p.id
+  where public.sub_is_admin()
+  order by p.full_name, p.email
+$$;
+grant execute on function public.sub_list_users() to authenticated;
+
+-- 7) แจ้งเตือนในแอป
+create table if not exists public.sub_notifications (
+  id         bigint generated always as identity primary key,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  kind       text not null,
+  title      text not null,
+  body       text not null default '',
+  link       text not null default '',          -- hash ของหน้าในแอป เช่น approvals
+  dedupe_key text,
+  read_at    timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists sub_notif_user on public.sub_notifications (user_id, created_at desc);
+create unique index if not exists sub_notif_dedupe on public.sub_notifications (user_id, dedupe_key) where dedupe_key is not null;
+alter table public.sub_notifications enable row level security;
+drop policy if exists sub_notif_read on public.sub_notifications;
+create policy sub_notif_read on public.sub_notifications for select using (user_id = auth.uid());
+revoke insert, update, delete, truncate on public.sub_notifications from anon, authenticated;
+do $$ begin alter publication supabase_realtime add table public.sub_notifications; exception when others then null; end $$;
+
+create or replace function public.sub_notif_read(p_ids bigint[] default null) returns void
+language sql security definer set search_path = public as $$
+  update public.sub_notifications set read_at = now()
+  where user_id = auth.uid() and read_at is null and (p_ids is null or id = any(p_ids))
+$$;
+grant execute on function public.sub_notif_read(bigint[]) to authenticated;
+
+-- ส่งถึงผู้มีหน้าที่นั้น (ถ้าไม่มีใครมีหน้าที่นั้นเลย ส่งถึงผู้ดูแลระบบ) · ไม่ส่งถึงผู้ที่ทำรายการเอง
+create or replace function public.sub_notify_duty(p_duty text, p_kind text, p_title text, p_body text, p_link text, p_key text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  insert into public.sub_notifications (user_id, kind, title, body, link, dedupe_key)
+  select user_id, p_kind, p_title, p_body, p_link, p_key from public.sub_users
+  where p_duty = any(duties) and user_id is distinct from auth.uid()
+  on conflict do nothing;
+  get diagnostics n = row_count;
+  if n = 0 and not exists (select 1 from public.sub_users where p_duty = any(duties)) then
+    insert into public.sub_notifications (user_id, kind, title, body, link, dedupe_key)
+    select user_id, p_kind, p_title, p_body, p_link, p_key from public.sub_users
+    where 'admin' = any(duties) and user_id is distinct from auth.uid()
+    on conflict do nothing;
+  end if;
+end $$;
+create or replace function public.sub_notify_teacher(p_teacher text, p_kind text, p_title text, p_body text, p_link text, p_key text default null) returns void
+language sql security definer set search_path = public as $$
+  insert into public.sub_notifications (user_id, kind, title, body, link, dedupe_key)
+  select user_id, p_kind, p_title, p_body, p_link, p_key from public.sub_users
+  where teacher_name = p_teacher and teacher_name <> '' and user_id is distinct from auth.uid()
+  on conflict do nothing
+$$;
+
+-- ข้อความแจ้งเตือนมีแค่ใคร/เมื่อไร/ประเภท — ไม่ใส่เหตุผลการลา
+create or replace function public.sub_th_date(d date) returns text language sql immutable as $$
+  select extract(day from d)::int || ' ' || (array['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'])[extract(month from d)::int] || ' ' || ((extract(year from d)::int + 543) % 100)
+$$;
+create or replace function public.sub_th_range(a date, b date) returns text language sql immutable as $$
+  select case when a = b then public.sub_th_date(a) else public.sub_th_date(a) || ' – ' || public.sub_th_date(b) end
+$$;
+
+create or replace function public.sub_notify_leaves() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.status = 'pending' then
+      perform public.sub_notify_duty('director', 'leave_wait', 'ใบลารออนุญาต', new.teacher_name || ' · ' || new.leave_type || ' · ' || public.sub_th_range(new.date_from, new.date_to), 'approvals', 'lw:' || new.id);
+    end if;
+    perform public.sub_notify_duty('hr', 'leave_new', 'มีการลาใหม่', new.teacher_name || ' · ' || new.leave_type || ' · ' || public.sub_th_range(new.date_from, new.date_to), 'leaves', 'ln:' || new.id);
+    if new.request_id is null and new.date_to >= current_date then
+      perform public.sub_notify_duty('academic', 'leave_noplan', 'ครูลา (ยังไม่มีคำขอสอนแทน)', new.teacher_name || ' · ' || public.sub_th_range(new.date_from, new.date_to) || ' — ตรวจว่าต้องจัดสอนแทนหรือไม่', 'assist', 'lp:' || new.id);
+    end if;
+  elsif new.status is distinct from old.status and new.status in ('approved','rejected') and (new.decided_at is distinct from old.decided_at) then
+    perform public.sub_notify_teacher(new.teacher_name, 'leave_decided',
+      case when new.status = 'approved' then 'ใบลาได้รับอนุญาต' else 'ใบลาไม่ได้รับอนุญาต' end,
+      new.leave_type || ' · ' || public.sub_th_range(new.date_from, new.date_to) || case when new.decision_note <> '' then ' · ' || new.decision_note else '' end,
+      'leaves', 'ld:' || new.id || ':' || new.status);
+  end if;
+  return null;
+end $$;
+drop trigger if exists sub_leaves_notify on public.sub_leaves;
+create trigger sub_leaves_notify after insert or update on public.sub_leaves for each row execute function public.sub_notify_leaves();
+
+create or replace function public.sub_notify_requests() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.status = 'pending' then
+    perform public.sub_notify_duty('academic', 'req_new', 'มีคาบรอจัดครูสอนแทน', new.teacher_name || ' · ' || public.sub_th_range(new.date_from, new.date_to), 'requests', 'rq:' || new.id);
+  end if;
+  return null;
+end $$;
+drop trigger if exists sub_requests_notify on public.sub_requests;
+create trigger sub_requests_notify after insert on public.sub_requests for each row execute function public.sub_notify_requests();
+
+-- ถูกจัดให้สอนแทน -> แจ้งครูผู้สอนแทน (รวมเป็น 1 ข้อความต่อวัน ต่อครูที่ลา กันแจ้งรัว)
+create or replace function public.sub_notify_records() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.status = 'confirmed' and new.substitute_teacher <> '' and (tg_op = 'INSERT' or new.substitute_teacher is distinct from old.substitute_teacher) then
+    perform public.sub_notify_teacher(new.substitute_teacher, 'sub_assigned', 'คุณได้รับมอบหมายให้สอนแทน',
+      'แทน ' || new.absent_teacher || ' · ' || public.sub_th_date(new.sub_date) || ' (ดูคาบที่ "สอนแทนของฉัน")', 'mysubs',
+      'sa:' || new.sub_date || ':' || new.absent_teacher);
+  end if;
+  return null;
+end $$;
+drop trigger if exists sub_records_notify on public.sub_records;
+create trigger sub_records_notify after insert or update on public.sub_records for each row execute function public.sub_notify_records();
+
+-- audit: ตารางใหม่
+do $$ declare t text; begin
+  foreach t in array array['sub_leaves'] loop
+    execute format('drop trigger if exists %I on public.%I', t || '_audit', t);
+    execute format('create trigger %I after insert or update or delete on public.%I for each row execute function public.sub_audit_trg()', t || '_audit', t);
+  end loop;
+end $$;
+
+-- งานบุคคล/ผอ. อ่านรายการสอนแทนได้ (ใช้ในรายงาน) — รายการสอนแทนไม่มีเหตุผลการลา
+drop policy if exists sub_rec_hr_read on public.sub_records;
+create policy sub_rec_hr_read on public.sub_records for select using (public.sub_is_hr() or public.sub_is_director());
+create or replace function public.sub_teacher_profiles()
+returns table (teacher_name text, full_name text, position_short text)
+language sql stable security definer set search_path = public as $$
+  select teacher_name, full_name, position_short from public.sub_users
+  where (public.sub_is_staff() or public.sub_is_hr() or public.sub_is_director()) and teacher_name <> ''
+$$;
+grant execute on function public.sub_teacher_profiles() to authenticated;

@@ -1,7 +1,8 @@
 // สรุปรายครู: ลากี่วัน · ถูกสอนแทนกี่คาบ · สอนแทนผู้อื่นกี่คาบ (ครูทั่วไปเห็นเฉพาะของตัวเอง)
 import { $, esc, toast, todayISO, thDate } from '../util.js';
-import { sb, q, rankData } from '../db.js';
-import { fiscalYear, fiscalRange, fmtDays } from '../leaves.js';
+import { rankData } from '../db.js';
+import { fiscalYear, fiscalRange, fmtDays, leavesRange } from '../leaves.js';
+import { has } from '../perm.js';
 
 const KEY = 'wlsub-sum';
 const monthOf = (m) => { const [y, mm] = m.split('-').map(Number); return { from: `${m}-01`, to: `${m}-${String(new Date(y, mm, 0).getDate()).padStart(2, '0')}` }; };
@@ -23,10 +24,9 @@ export function summarize(leaves, recs, from, to) {
 }
 
 export async function render(el, ctx) {
-  const { me } = ctx; const staff = me.role !== 'requester';
+  const { me } = ctx; const staff = has(me, 'academic') || has(me, 'hr') || has(me, 'director');
   const f = JSON.parse(sessionStorage.getItem(KEY) || 'null') || monthOf(todayISO().slice(0, 7));
-  const [rank, leaves] = await Promise.all([rankData(),
-    q(sb.from('sub_leaves').select('teacher_name,leave_type,date_from,days,status').gte('date_from', f.from).lte('date_from', f.to).limit(2000)).catch(() => [])]);
+  const [rank, leaves] = await Promise.all([rankData(), leavesRange(me, f.from, f.to)]);
   let rows = summarize(leaves, rank.records, f.from, f.to);
   if (!staff) rows = rows.filter((r) => r.name === me.teacher);
   const fy = fiscalYear(todayISO()); const fr = fiscalRange(fy);

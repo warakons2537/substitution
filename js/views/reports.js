@@ -2,6 +2,7 @@
 import { $, $$, esc, toast, todayISO, thDate, thDay } from '../util.js';
 import { sb, q, settings } from '../db.js';
 import { realTeachers } from '../timetable.js';
+import { leavesRange } from '../leaves.js';
 import { stats, rangeText, downloadExcel, printReport, downloadWord } from '../report.js';
 import { printSubNotes } from '../print.js';
 
@@ -25,7 +26,7 @@ export async function render(el, ctx) {
   const { tt } = ctx;
   const f = JSON.parse(sessionStorage.getItem('wlsub-report') || 'null') || monthRange(todayISO().slice(0, 7));
   const [recs, s, profiles, leaves] = await Promise.all([fetchRecords(f.from, f.to), settings(), q(sb.rpc('sub_teacher_profiles')),
-    q(sb.from('sub_leaves').select('*').neq('status', 'cancelled').gte('date_from', f.from).lte('date_from', f.to).order('date_from').limit(1000)).catch(() => [])]);
+    leavesRange(ctx.me, f.from, f.to)]);
   const st = stats(recs, realTeachers(tt.data));
   const prof = Object.fromEntries(profiles.map((p) => [p.teacher_name, p]));
   // บันทึกการสอนแทน: 1 แผ่น = ครูที่ลา 1 คน ต่อ 1 วัน

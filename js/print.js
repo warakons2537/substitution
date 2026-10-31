@@ -105,6 +105,8 @@ export async function printRequest(req, me) {
       q(sb.from('sub_leaves').select('*').eq('teacher_name', req.teacher_name)),
       activeTimetable(),
     ]);
+    const lv = history.find((h) => h.request_id === req.id);
+    req = { ...req, reason: lv?.reason || '', contact: lv?.contact || '' };   // เหตุผล/ที่ติดต่ออยู่ในทะเบียนการลา
     const nP = tt?.data?.periods || Math.max(6, ...recs.map((r) => r.period));
     const periods = Array.from({ length: nP }, (_, i) => i + 1);
     const dates = [...new Set(recs.map((r) => r.sub_date))];
