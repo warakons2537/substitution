@@ -2,7 +2,7 @@
 //  รายงาน: สรุปสถิติ + Excel 5 แผ่นงาน + รายงานสรุป A4 + Word (.doc)
 // =====================================================================
 import { esc, thDate, thDay, parseISO } from './util.js';
-import { BRAND, LEAVE_TYPES } from './config.js';
+import { BRAND, LEAVE_TYPES, LEAVE_STATUS } from './config.js';
 import { dmy, MONTHS, printHtml } from './print.js';
 
 const XLSX_URL = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
@@ -37,6 +37,8 @@ export function stats(recs, teachers = []) {
     covered: recs.filter((r) => r.substitute_teacher).length,
     none: recs.filter((r) => !r.substitute_teacher).length,
     absentDays: [...abs.values()].reduce((n, a) => n + a.dates.size, 0),
+    // ประเภทการลาที่พบจริงในช่วงนี้ (ไม่แสดงคอลัมน์ว่างทั้งแถว)
+    types: [...new Set([...LEAVE_TYPES.filter((t) => [...abs.values()].some((a) => a.types[t])), ...[...abs.values()].flatMap((a) => Object.keys(a.types))])],
   };
 }
 
@@ -54,7 +56,7 @@ const fileTag = (from, to) => (from.slice(0, 7) === to.slice(0, 7) && from.endsW
 // ---------------------------------------------------------------------
 // Excel
 // ---------------------------------------------------------------------
-export async function downloadExcel(st, from, to, tt) {
+export async function downloadExcel(st, from, to, tt, leaves = []) {
   const X = await import(XLSX_URL);
   const head = (title) => [[`${title} · โรงเรียน${BRAND.school}`], [`${rangeText(from, to)}${tt ? ` · ปีการศึกษา ${tt.academic_year} ภาคเรียนที่ ${tt.term}` : ''}`], []];
   const sheet = (title, header, rows, widths) => {
@@ -72,15 +74,22 @@ export async function downloadExcel(st, from, to, tt) {
   X.utils.book_append_sheet(wb, sheet('สรุปผู้สอนแทน', ['ที่', 'ครูสอนแทน', 'จำนวนคาบ', 'จำนวนวัน'],
     st.subs.map((s, i) => [i + 1, s.name, s.n, s.dates.size]), [6, 26, 12, 12]), 'สรุปผู้สอนแทน');
   X.utils.book_append_sheet(wb, sheet('สรุปคนลา',
-    ['ที่', 'ครูที่ลา', ...LEAVE_TYPES.map((t) => `${t} (วัน)`), 'รวม (วัน)', 'คาบที่มีผู้สอนแทน', 'คาบที่ไม่ต้องสอนแทน'],
-    st.absents.map((a, i) => [i + 1, a.name, ...LEAVE_TYPES.map((t) => a.types[t]?.size || 0), a.dates.size, a.covered, a.none]),
-    [6, 26, ...LEAVE_TYPES.map(() => 12), 10, 16, 18]), 'สรุปคนลา');
+    ['ที่', 'ครูที่ลา', ...st.types.map((t) => `${t} (วัน)`), 'รวม (วัน)', 'คาบที่มีผู้สอนแทน', 'คาบที่ไม่ต้องสอนแทน'],
+    st.absents.map((a, i) => [i + 1, a.name, ...st.types.map((t) => a.types[t]?.size || 0), a.dates.size, a.covered, a.none]),
+    [6, 26, ...st.types.map(() => 12), 10, 16, 18]), 'สรุปคนลา');
   X.utils.book_append_sheet(wb, sheet('สรุปวิชา', ['ที่', 'วิชา', 'ชั้น', 'คาบที่มีผู้สอนแทน', 'คาบที่ไม่ต้องสอนแทน', 'รวม'],
     st.subjects.map((s, i) => [i + 1, s.subject, s.grade, s.covered, s.none, s.covered + s.none]), [6, 30, 12, 16, 18, 8]), 'สรุปวิชา');
   X.utils.book_append_sheet(wb, sheet('สรุปรายวัน',
     ['วันที่', 'วัน', 'จำนวนครูที่ลา', 'ครูที่ลา', 'คาบที่มีผู้สอนแทน', 'คาบที่ไม่ต้องสอนแทน'],
     st.daily.map((d) => [thDate(d.date), thDay(d.date), d.absent.size, [...d.absent].sort(byTh).join(', '), d.covered, d.none]),
     [12, 6, 14, 50, 16, 18]), 'สรุปรายวัน');
+  if (leaves.length) {
+    X.utils.book_append_sheet(wb, sheet('ทะเบียนการลาของครู',
+      ['ตั้งแต่วันที่', 'ถึงวันที่', 'ครู', 'ประเภทการลา', 'ช่วงเวลา', 'จำนวนวัน', 'เหตุผล', 'ใบรับรองแพทย์', 'สถานะ', 'หมายเหตุ'],
+      leaves.map((l) => [thDate(l.date_from), thDate(l.date_to), l.teacher_name, l.leave_type, l.half === 'am' ? 'ครึ่งวันเช้า' : l.half === 'pm' ? 'ครึ่งวันบ่าย' : 'เต็มวัน',
+        Number(l.days), l.reason, l.has_cert ? 'มี' : '', LEAVE_STATUS[l.status] || l.status, l.note]),
+      [14, 14, 24, 26, 12, 10, 30, 12, 12, 30]), 'ทะเบียนการลา');
+  }
   X.writeFile(wb, `รายงานสอนแทน_${fileTag(from, to)}.xlsx`);
 }
 
@@ -98,10 +107,10 @@ function body(st, from, to, tt, s, logoSrc) {
     <p class="pi">ในช่วงเวลาดังกล่าว มีครูลาหรือไปราชการ ${st.absents.length} คน รวม ${st.absentDays} วัน
       มีคาบสอนที่ต้องดูแล ${st.recs.length} คาบ จัดครูสอนแทนแล้ว ${st.covered} คาบ และไม่ต้องสอนแทน ${st.none} คาบ</p>
     <p><b>1. สรุปการลา</b></p>
-    <table class="pgrid prep"><tr><th>ที่</th><th>ชื่อ</th>${LEAVE_TYPES.map((t) => `<th>${esc(t)}</th>`).join('')}<th>รวม (วัน)</th><th>คาบที่มีผู้สอนแทน</th></tr>
+    <table class="pgrid prep"><tr><th>ที่</th><th>ชื่อ</th>${st.types.map((t) => `<th>${esc(t)}</th>`).join('')}<th>รวม (วัน)</th><th>คาบที่มีผู้สอนแทน</th></tr>
       ${st.absents.length ? st.absents.map((a, i) => `<tr><td class="pc">${i + 1}</td><td>${esc(a.name)}</td>
-        ${LEAVE_TYPES.map((t) => `<td class="pc">${a.types[t]?.size || '-'}</td>`).join('')}<td class="pc">${a.dates.size}</td><td class="pc">${a.covered}</td></tr>`).join('')
-        : `<tr><td colspan="${LEAVE_TYPES.length + 4}" class="pc">ไม่มีการลา</td></tr>`}</table>
+        ${st.types.map((t) => `<td class="pc">${a.types[t]?.size || '-'}</td>`).join('')}<td class="pc">${a.dates.size}</td><td class="pc">${a.covered}</td></tr>`).join('')
+        : `<tr><td colspan="${st.types.length + 4}" class="pc">ไม่มีการลา</td></tr>`}</table>
     <p style="margin-top:8pt"><b>2. สรุปการสอนแทน</b> (จำนวนคาบ / จำนวนวันที่สอนแทน)</p>
     <table class="pwrap"><tr><td>${subTable(st.subs.slice(0, half), 0)}</td><td>${subTable(st.subs.slice(half), half)}</td></tr></table>
     <table class="pwrap psigns"><tr>

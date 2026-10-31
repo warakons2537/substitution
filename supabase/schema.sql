@@ -13,6 +13,8 @@ create table if not exists public.sub_users (
 );
 comment on column public.sub_users.role is 'admin = ผู้ดูแลระบบ, academic = ฝ่ายวิชาการ, requester = ผู้ขอลา';
 
+alter table public.sub_users add column if not exists staff_id uuid;   -- ผูกกับตาราง staff กลาง (WL Academic) แบบอ่อน ไม่มี FK
+
 -- 2) ตารางสอนที่นำเข้าจาก WL Scheduler (เก็บทั้งชุดเป็น jsonb)
 create table if not exists public.sub_timetables (
   id            uuid primary key default gen_random_uuid(),
@@ -270,9 +272,9 @@ end $$;
 drop function if exists public.sub_list_users();
 create function public.sub_list_users()
 returns table (user_id uuid, email text, full_name text, role text, teacher_name text,
-               print_name text, "position" text, position_short text, phone text)
+               print_name text, "position" text, position_short text, phone text, staff_id uuid)
 language sql stable security definer set search_path = public as $$
-  select p.id, p.email, p.full_name, s.role, s.teacher_name, s.full_name, s.position, s.position_short, s.phone
+  select p.id, p.email, p.full_name, s.role, s.teacher_name, s.full_name, s.position, s.position_short, s.phone, s.staff_id
   from public.profiles p left join public.sub_users s on s.user_id = p.id
   where public.sub_is_admin()
   order by p.full_name, p.email

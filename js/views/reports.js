@@ -24,7 +24,8 @@ async function fetchRecords(from, to) {
 export async function render(el, ctx) {
   const { tt } = ctx;
   const f = JSON.parse(sessionStorage.getItem('wlsub-report') || 'null') || monthRange(todayISO().slice(0, 7));
-  const [recs, s, profiles] = await Promise.all([fetchRecords(f.from, f.to), settings(), q(sb.rpc('sub_teacher_profiles'))]);
+  const [recs, s, profiles, leaves] = await Promise.all([fetchRecords(f.from, f.to), settings(), q(sb.rpc('sub_teacher_profiles')),
+    q(sb.from('sub_leaves').select('*').neq('status', 'cancelled').gte('date_from', f.from).lte('date_from', f.to).order('date_from').limit(1000)).catch(() => [])]);
   const st = stats(recs, realTeachers(tt.data));
   const prof = Object.fromEntries(profiles.map((p) => [p.teacher_name, p]));
   // บันทึกการสอนแทน: 1 แผ่น = ครูที่ลา 1 คน ต่อ 1 วัน
@@ -44,7 +45,7 @@ export async function render(el, ctx) {
     </form>
     <p><b>${esc(rangeText(f.from, f.to))}</b> · ครูลา ${st.absents.length} คน ${st.absentDays} วัน · ${recs.length} คาบ
       (สอนแทน ${st.covered} · ไม่ต้องสอนแทน ${st.none})</p>
-    <div class="actions"><button class="btn btn-primary" id="rp-xlsx">ดาวน์โหลด Excel (5 แผ่นงาน)</button>
+    <div class="actions"><button class="btn btn-primary" id="rp-xlsx">ดาวน์โหลด Excel (6 แผ่นงาน)</button>
       <button class="btn" id="rp-print">พิมพ์รายงานสรุป A4</button><button class="btn" id="rp-word">ดาวน์โหลด Word</button></div></div>
     <div class="card"><div class="row-between"><h3>พิมพ์บันทึกการสอนแทนแทนครู</h3>
       <button class="btn btn-sm btn-primary" id="rp-sel" disabled>พิมพ์ที่เลือก</button></div>
@@ -70,7 +71,7 @@ export async function render(el, ctx) {
   });
   $('#rp-xlsx', el).addEventListener('click', async (e) => {
     e.target.disabled = true;
-    try { await downloadExcel(st, f.from, f.to, tt); } catch (err) { toast(`สร้าง Excel ไม่ได้: ${err.message}`, 'err'); }
+    try { await downloadExcel(st, f.from, f.to, tt, leaves); } catch (err) { toast(`สร้าง Excel ไม่ได้: ${err.message}`, 'err'); }
     e.target.disabled = false;
   });
   $('#rp-print', el).addEventListener('click', () => printReport(st, f.from, f.to, tt, s));
