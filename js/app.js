@@ -12,6 +12,7 @@ import * as setts from './views/settings.js';
 import * as audit from './views/audit.js';
 import * as reports from './views/reports.js';
 import * as home from './views/home.js';
+import * as leaves from './views/leaves.js';
 import { icon } from './icons.js';
 import { mountNav } from './navbar.js';
 
@@ -22,6 +23,7 @@ const HOME = ['home', 'หน้าแรก', home.render, false];
 const STAFF = [
   ['assist', 'จัดสอนแทน', assist.render, true],
   ['requests', 'คำขอ', requests.render, true],
+  ['leaves', 'ทะเบียนลา', leaves.render, false],
   ['records', 'บันทึก', records.render, true],
   ['reports', 'รายงาน', reports.render, true],
   ['import', 'ตารางสอน', imp.render, false],
@@ -30,7 +32,7 @@ const MINE = ['profile', 'ข้อมูลฉัน', profile.render, false];
 const NAV = {
   admin: [HOME, ...STAFF, ['users', 'ผู้ใช้', users.render, false], ['settings', 'ตั้งค่า', setts.render, false], ['audit', 'ประวัติใช้งาน', audit.render, false], MINE],
   academic: [HOME, ...STAFF, MINE],
-  requester: [HOME, ['request', 'แจ้งลา', request.render, true], ['mine', 'คำขอฉัน', request.renderMine, false], MINE],
+  requester: [HOME, ['request', 'แจ้งลา', request.render, true], ['mine', 'คำขอฉัน', request.renderMine, false], ['leaves', 'ประวัติลา', leaves.render, false], MINE],
 };
 const SIBLINGS = [
   { name: 'ทางเข้า WL (ทุกแอป)', url: '../' },

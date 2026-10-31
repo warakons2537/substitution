@@ -289,3 +289,151 @@ language sql stable security definer set search_path = public as $$
   where public.sub_is_staff() and teacher_name <> ''
 $$;
 grant execute on function public.sub_teacher_profiles() to authenticated;
+
+-- =====================================================================
+--  รอบ 3 ส่วนที่ 1: ทะเบียนการลาของครู (sub_leaves) + ประเภท/โควตา + วันหยุด
+--  รันซ้ำได้ · ไม่แก้/ลบข้อมูลเดิม · คำขอลาเดิมถูกนำเข้าทะเบียนอัตโนมัติ
+-- =====================================================================
+
+-- ผูกบัญชีกับตาราง staff กลาง (WL Academic) — ผูกแบบอ่อน ไม่มี FK เพื่อให้ใช้ได้แม้ยังไม่ได้ติดตั้ง WL Academic
+alter table public.sub_users add column if not exists staff_id uuid;
+
+-- ประเภทการลา + โควตาต่อปีงบประมาณ (ว่าง = ไม่จำกัด/ไม่ตรวจ) · ผู้ดูแลระบบแก้ได้ที่เมนู "ตั้งค่า"
+create table if not exists public.sub_leave_types (
+  leave_type    text primary key,
+  quota_days    numeric(6,1),
+  calendar_days boolean not null default false,   -- true = นับวันปฏิทิน (รวมเสาร์-อาทิตย์/วันหยุด) เช่น ลาคลอด
+  sort_order    int not null default 0,
+  active        boolean not null default true
+);
+insert into public.sub_leave_types (leave_type, quota_days, calendar_days, sort_order) values
+  ('ลาป่วย', null, false, 1), ('ลากิจ', null, false, 2), ('ลาพักผ่อน', 10, false, 3), ('ไปราชการ', null, false, 4),
+  ('ลาคลอด', 90, true, 5), ('ลาไปช่วยเหลือภริยาที่คลอดบุตร', 15, false, 6), ('ลาอุปสมบท/ลาไปประกอบพิธีฮัจย์', 120, true, 7),
+  ('ไม่ระบุ', null, false, 9)
+on conflict (leave_type) do nothing;
+
+-- วันหยุดราชการ/วันหยุดของโรงเรียน (ไม่นับเป็นวันลา ยกเว้นประเภทที่นับวันปฏิทิน)
+create table if not exists public.sub_holidays (
+  day  date primary key,
+  name text not null default ''
+);
+
+-- จำนวนวันลา (วันทำการ จ.-ศ. หักวันหยุด · ครึ่งวัน = 0.5 · ประเภทนับวันปฏิทินนับทุกวัน)
+create or replace function public.sub_leave_days(p_from date, p_to date, p_type text, p_half text)
+returns numeric language sql stable set search_path = public as $$
+  select case
+    when p_to < p_from then 0
+    when coalesce(p_half, '') <> '' then 0.5
+    else coalesce((select count(*) from generate_series(p_from, p_to, interval '1 day') g(d)
+      where coalesce((select calendar_days from public.sub_leave_types where leave_type = p_type), false)
+         or (extract(isodow from g.d) < 6 and not exists (select 1 from public.sub_holidays h where h.day = g.d::date))), 0)
+  end
+$$;
+
+-- ทะเบียนการลา (1 แถว = การลา 1 ครั้ง) · ไม่จำเป็นต้องมีการสอนแทน
+create table if not exists public.sub_leaves (
+  id           uuid primary key default gen_random_uuid(),
+  teacher_name text not null,
+  leave_type   text not null default 'ไม่ระบุ',
+  date_from    date not null,
+  date_to      date not null,
+  half         text not null default '' check (half in ('', 'am', 'pm')),   -- ครึ่งวันเช้า/บ่าย (ต้องลาวันเดียว)
+  days         numeric(6,1) not null default 0,                              -- คำนวณโดย trigger
+  reason       text not null default '',
+  contact      text not null default '',
+  has_cert     boolean not null default false,                               -- มีใบรับรองแพทย์
+  note         text not null default '',
+  status       text not null default 'approved' check (status in ('pending','approved','rejected','cancelled')),
+  request_id   uuid references public.sub_requests(id) on delete set null,
+  created_by   uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  check (date_to >= date_from),
+  check (half = '' or date_to = date_from)
+);
+create index if not exists sub_leaves_teacher on public.sub_leaves (teacher_name, date_from);
+create index if not exists sub_leaves_from    on public.sub_leaves (date_from);
+create unique index if not exists sub_leaves_request on public.sub_leaves (request_id) where request_id is not null;
+
+create or replace function public.sub_leaves_before() returns trigger language plpgsql as $$
+begin
+  new.days := public.sub_leave_days(new.date_from, new.date_to, new.leave_type, new.half);
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists sub_leaves_before on public.sub_leaves;
+create trigger sub_leaves_before before insert or update on public.sub_leaves for each row execute function public.sub_leaves_before();
+
+-- คำขอลา/ขอสอนแทน -> ลงทะเบียนการลาอัตโนมัติ และตามสถานะของคำขอ (แก้ไขรายการในทะเบียนเองได้ ไม่ถูกเขียนทับ ยกเว้นสถานะ)
+create or replace function public.sub_leave_sync() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    insert into public.sub_leaves (teacher_name, leave_type, date_from, date_to, reason, contact, status, request_id, created_by)
+    values (new.teacher_name, new.leave_type, new.date_from, new.date_to, new.reason, new.contact, new.status, new.id, new.requested_by)
+    on conflict (request_id) where request_id is not null do nothing;
+  else
+    update public.sub_leaves set status = new.status where request_id = new.id and status <> new.status;
+  end if;
+  return null;
+end $$;
+drop trigger if exists sub_requests_leave_sync on public.sub_requests;
+create trigger sub_requests_leave_sync after insert or update on public.sub_requests for each row execute function public.sub_leave_sync();
+
+-- นำเข้าคำขอเดิมที่ยังไม่อยู่ในทะเบียน (รันซ้ำได้)
+insert into public.sub_leaves (teacher_name, leave_type, date_from, date_to, reason, contact, status, request_id, created_by, created_at)
+select r.teacher_name, r.leave_type, r.date_from, r.date_to, r.reason, r.contact, r.status, r.id, r.requested_by, r.created_at
+from public.sub_requests r
+where not exists (select 1 from public.sub_leaves l where l.request_id = r.id);
+
+-- RLS
+alter table public.sub_leave_types enable row level security;
+alter table public.sub_holidays    enable row level security;
+alter table public.sub_leaves      enable row level security;
+do $$ declare r record; begin
+  for r in select policyname, tablename from pg_policies
+           where schemaname = 'public' and tablename in ('sub_leave_types','sub_holidays','sub_leaves') loop
+    execute format('drop policy %I on public.%I', r.policyname, r.tablename);
+  end loop;
+end $$;
+create policy sub_lt_read  on public.sub_leave_types for select using (public.sub_is_member());
+create policy sub_lt_admin on public.sub_leave_types for all    using (public.sub_is_admin()) with check (public.sub_is_admin());
+create policy sub_hd_read  on public.sub_holidays    for select using (public.sub_is_member());
+create policy sub_hd_admin on public.sub_holidays    for all    using (public.sub_is_admin()) with check (public.sub_is_admin());
+-- ทะเบียนการลา: ฝ่ายวิชาการ/ผู้ดูแลเห็น/เพิ่ม/แก้ได้ทุกคน (ลบได้เฉพาะผู้ดูแลระบบ) · ครูเห็น/บันทึกได้เฉพาะของตัวเอง (บันทึกเองต้องรอตรวจ = pending)
+create policy sub_lv_read on public.sub_leaves for select
+  using (public.sub_is_staff() or teacher_name = public.sub_my_teacher() or created_by = auth.uid());
+create policy sub_lv_staff_ins on public.sub_leaves for insert with check (public.sub_is_staff());
+create policy sub_lv_staff_upd on public.sub_leaves for update using (public.sub_is_staff()) with check (public.sub_is_staff());
+create policy sub_lv_ins on public.sub_leaves for insert
+  with check (public.sub_is_member() and created_by = auth.uid() and status = 'pending' and request_id is null
+              and teacher_name = public.sub_my_teacher());
+create policy sub_lv_upd on public.sub_leaves for update
+  using (created_by = auth.uid() and status = 'pending' and request_id is null)
+  with check (created_by = auth.uid() and status = 'pending' and request_id is null and teacher_name = public.sub_my_teacher());
+create policy sub_lv_del on public.sub_leaves for delete
+  using (public.sub_is_admin() or (created_by = auth.uid() and status = 'pending' and request_id is null));
+
+-- audit: เพิ่มตารางใหม่ (และรองรับตารางที่ไม่มี id)
+create or replace function public.sub_audit_trg() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare o jsonb; n jsonb; j jsonb;
+begin
+  if tg_op <> 'INSERT' then o := to_jsonb(old); end if;
+  if tg_op <> 'DELETE' then n := to_jsonb(new); end if;
+  if tg_table_name = 'sub_timetables' then o := o - 'data'; n := n - 'data'; end if;
+  if tg_op = 'UPDATE' and (o - 'updated_at') = (n - 'updated_at') then return null; end if;
+  j := coalesce(n, o);
+  insert into public.sub_audit (user_id, email, tbl, op, row_id, old_data, new_data)
+  values (auth.uid(), coalesce(auth.jwt() ->> 'email', ''), tg_table_name, tg_op,
+          coalesce(j ->> 'id', j ->> 'user_id', j ->> 'day', j ->> 'leave_type', ''), o, n);
+  return null;
+end $$;
+do $$ declare t text; begin
+  foreach t in array array['sub_leaves','sub_leave_types','sub_holidays'] loop
+    execute format('drop trigger if exists %I on public.%I', t || '_audit', t);
+    execute format('create trigger %I after insert or update or delete on public.%I for each row execute function public.sub_audit_trg()', t || '_audit', t);
+  end loop;
+end $$;
+
+grant execute on function public.sub_leave_days(date, date, text, text) to authenticated;

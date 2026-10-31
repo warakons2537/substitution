@@ -19,6 +19,7 @@ const LEAVE = {
   'ลาคลอด': { key: 'maternity', label: 'คลอดบุตร', subject: 'ขอลาคลอดบุตร' },
 };
 const dayCount = (r) => {
+  if (r.days != null) return Number(r.days);   // จากทะเบียนการลา (หักวันหยุดแล้ว)
   const all = dateRange(r.date_from, r.date_to);
   return r.leave_type === 'ลาคลอด' ? all.length : all.filter((d) => dowIndex(d) >= 0).length;
 };
@@ -27,20 +28,22 @@ const dots = (n = 30) => '.'.repeat(n);
 
 function leavePage(req, me, s, history) {
   const L = LEAVE[req.leave_type];
+  const cur = history.find((h) => h.request_id === req.id);
+  const reqD = cur ? { ...req, days: cur.days } : req;   // จำนวนวันจากทะเบียน (หักวันหยุดแล้ว)
   const school = BRAND.school;
   const fy = fiscalYear(req.date_from);
-  const prev = history.filter((h) => h.id !== req.id && LEAVE[h.leave_type] && ['pending', 'approved'].includes(h.status)
+  const prev = history.filter((h) => h.request_id !== req.id && LEAVE[h.leave_type] && ['pending', 'approved'].includes(h.status)
     && h.date_from < req.date_from);
   const inFy = prev.filter((h) => fiscalYear(h.date_from) === fy);
   const last = prev.sort((a, b) => (a.date_from < b.date_from ? 1 : -1))[0];
   const cell = (list) => (list.length ? `${list.length}(${list.reduce((n, h) => n + dayCount(h), 0)})` : '-');
   const rows = Object.entries(LEAVE).map(([type, t]) => {
     const before = inFy.filter((h) => h.leave_type === type);
-    const now = type === req.leave_type ? [req] : [];
+    const now = type === req.leave_type ? [reqD] : [];
     return { t, before, now, all: before.concat(now) };
   });
   const total = rows.flatMap((r) => r.all);
-  const n = dayCount(req);
+  const n = dayCount(reqD);
   return `<section class="a4">
     <h1 class="pc">แบบใบลาป่วย ลากิจส่วนตัว ลาคลอดบุตร</h1>
     <p class="pr">เขียนที่ โรงเรียน${esc(school)}</p>
@@ -99,7 +102,7 @@ export async function printRequest(req, me) {
     const [s, recs, history, tt] = await Promise.all([
       settings(),
       q(sb.from('sub_records').select('*').eq('request_id', req.id).order('sub_date').order('period')),
-      q(sb.from('sub_requests').select('*').eq('requested_by', req.requested_by || me.id)),
+      q(sb.from('sub_leaves').select('*').eq('teacher_name', req.teacher_name)),
       activeTimetable(),
     ]);
     const nP = tt?.data?.periods || Math.max(6, ...recs.map((r) => r.period));
