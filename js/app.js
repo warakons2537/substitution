@@ -143,7 +143,7 @@ async function route() {
   }
   view.innerHTML = '<div class="loading" role="status"><i class="bar"></i><span>กำลังโหลด…</span></div>';
   try { await VIEWS[item[0]](view, ctx); } catch (e) { console.error(e); view.innerHTML = `<div class="card"><p class="warn">${esc(e.message)}</p></div>`; }
-  window.scrollTo(0, 0);
+  window.scrollTo(0, 0); $('.main')?.scrollTo(0, 0);   // มือถือ: .main เป็นตัวเลื่อน
 }
 
 async function boot() {

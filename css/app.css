@@ -228,6 +228,18 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .bell-item span { font-size: .88rem; color: var(--ink-soft); } .bell-item small { font-size: .74rem; color: var(--ink-soft); }
 @media (max-width: 599px) { .bell-panel { position: fixed; left: 12px; right: 12px; top: 56px; width: auto; } }
 
+/* ---------- มือถือ: ให้ .main เป็นตัวเลื่อน และแถบเมนูล่างอยู่นิ่ง (ไม่ถูกดันออกจอเมื่อลากค้างที่บนสุด/ล่างสุดหรือแถบ Safari ขยับ) ---------- */
+@media screen and (max-width: 599px) {
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  #app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+  #app > .login, #app > .splash { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .shell { flex: 1 1 auto; min-height: 0; display: block; }
+  .main { height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; padding-bottom: 24px; }
+  #bnav-root { flex: none; }
+  .bnav { position: relative; left: auto; right: auto; bottom: auto; }
+  .toast { bottom: calc(var(--bnav-h) + 16px + env(safe-area-inset-bottom, 0px)); }
+}
+
 /* ---------- แบบพิมพ์ A4 (TH SarabunPSK 16pt) ---------- */
 @font-face { font-family: 'WL TH SarabunPSK'; src: url('../fonts/sarabun-psk-regular.woff') format('woff'); font-weight: 400; font-display: block; }
 @font-face { font-family: 'WL TH SarabunPSK'; src: url('../fonts/sarabun-psk-bold.woff') format('woff'); font-weight: 700; font-display: block; }
