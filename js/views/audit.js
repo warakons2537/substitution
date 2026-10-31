@@ -4,7 +4,7 @@ import { sb, q } from '../db.js';
 import { ROLES } from '../config.js';
 
 const TBL = { sub_records: 'รายการสอนแทน', sub_requests: 'คำขอลา/สอนแทน', sub_users: 'ผู้ใช้และสิทธิ์',
-  sub_settings: 'ตั้งค่าแบบพิมพ์', sub_timetables: 'ตารางสอน' };
+  sub_settings: 'ตั้งค่า', sub_timetables: 'ตารางสอน', sub_leaves: 'ทะเบียนการลา', sub_leave_types: 'ประเภท/โควตาการลา', sub_holidays: 'วันหยุด' };
 const OP = { INSERT: 'เพิ่ม', UPDATE: 'แก้ไข', DELETE: 'ลบ' };
 const OPCLS = { INSERT: 'approved', UPDATE: 'pending', DELETE: 'rejected' };
 const F = { sub_date: 'วันที่', period: 'คาบ', absent_teacher: 'ครูที่ลา', leave_type: 'ประเภทการลา', grade: 'ชั้น',
