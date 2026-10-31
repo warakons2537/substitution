@@ -1,5 +1,5 @@
 // ผู้ดูแลระบบ: กำหนดสิทธิ์และผูกบัญชีกับชื่อครู
-import { $, $$, esc, opts, toast } from '../util.js';
+import { $, $$, esc, opts, toast , confirmBox } from '../util.js';
 import { sb, q } from '../db.js';
 import { ROLES } from '../config.js';
 import { realTeachers } from '../timetable.js';
@@ -35,7 +35,7 @@ export async function render(el, ctx) {
     const tr = b.closest('tr'); const id = tr.dataset.u;
     const role = tr.querySelector('[name=role]').value; const teacher = tr.querySelector('[name=teacher]').value;
     if (role === 'requester' && !teacher) { toast('ผู้ขอลาต้องเลือกชื่อครู', 'err'); return; }
-    if (id === ctx.me.id && role !== 'admin' && !confirm('กำลังลดสิทธิ์ของตัวเอง ยืนยัน?')) return;
+    if (id === ctx.me.id && role !== 'admin' && !(await confirmBox('กำลังลดสิทธิ์ของตัวเอง ยืนยัน?')) ) return;
     try {
       if (!role) await q(sb.from('sub_users').delete().eq('user_id', id));
       else await q(sb.from('sub_users').upsert({ user_id: id, role, teacher_name: teacher }));

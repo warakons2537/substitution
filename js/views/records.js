@@ -1,5 +1,5 @@
 // ฝ่ายวิชาการ: บันทึกการสอนแทนด้วยมือ + รายการที่บันทึกแล้ว (แก้ไข/ลบ)
-import { $, $$, esc, opts, toast, todayISO, thDate, thDay, dowIndex } from '../util.js';
+import { $, $$, esc, opts, toast, todayISO, thDate, thDay, dowIndex , confirmBox } from '../util.js';
 import { sb, q } from '../db.js';
 import { LEAVE_TYPES } from '../config.js';
 import { realTeachers, gradeLabel } from '../timetable.js';
@@ -74,7 +74,7 @@ export async function render(el, ctx) {
     f.scrollIntoView({ behavior: 'smooth' });
   }));
   $$('[data-del]', el).forEach((b) => b.addEventListener('click', async () => {
-    if (!confirm('ลบรายการนี้?')) return;
+    if (!(await confirmBox('ลบรายการนี้?')) ) return;
     try { await q(sb.from('sub_records').delete().eq('id', b.dataset.del)); toast('ลบแล้ว'); render(el, ctx); } catch (err) { toast(err.message, 'err'); }
   }));
   // ผู้ดูแลระบบ: เลือกหลายรายการแล้วลบ (รายการที่ลบไม่ถูกนับในสถิติอีก)
@@ -84,7 +84,7 @@ export async function render(el, ctx) {
   $$('.m-pick', el).forEach((c) => c.addEventListener('change', sync));
   $('#m-del-sel', el)?.addEventListener('click', async () => {
     const ids = picks();
-    if (!ids.length || !confirm(`ลบ ${ids.length} รายการที่เลือก?`)) return;
+    if (!ids.length || !(await confirmBox(`ลบ ${ids.length} รายการที่เลือก?`))) return;
     try { await q(sb.from('sub_records').delete().in('id', ids)); toast(`ลบแล้ว ${ids.length} รายการ`); render(el, ctx); } catch (err) { toast(err.message, 'err'); }
   });
 }

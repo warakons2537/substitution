@@ -1,5 +1,5 @@
 // ฝ่ายวิชาการ: นำเข้าตารางสอนจากไฟล์สำรอง JSON ของ WL Scheduler
-import { $, $$, esc, opts, toast, thDate } from '../util.js';
+import { $, $$, esc, opts, toast, thDate , confirmBox } from '../util.js';
 import { sb, q } from '../db.js';
 import { listScenarios, convertScenario } from '../timetable.js';
 
@@ -76,7 +76,7 @@ export async function render(el, ctx) {
     try { await activate(b.dataset.use); toast('เปลี่ยนตารางสอนที่ใช้แล้ว'); ctx.reload(); } catch (err) { toast(err.message, 'err'); }
   }));
   $$('[data-del]', el).forEach((b) => b.addEventListener('click', async () => {
-    if (!confirm('ลบตารางสอนนี้? (รายการสอนแทนที่บันทึกแล้วไม่ถูกลบ)')) return;
+    if (!(await confirmBox('ลบตารางสอนนี้? (รายการสอนแทนที่บันทึกแล้วไม่ถูกลบ)'))) return;
     try { await q(sb.from('sub_timetables').delete().eq('id', b.dataset.del)); render(el, ctx); } catch (err) { toast(err.message, 'err'); }
   }));
 }

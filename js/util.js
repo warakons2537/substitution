@@ -26,3 +26,32 @@ export const opts = (list, sel = '') => list.map((x) => {
   const [v, l] = Array.isArray(x) ? x : [x, x];
   return `<option value="${esc(v)}"${String(v) === String(sel) ? ' selected' : ''}>${esc(l)}</option>`;
 }).join('');
+export function modal(title, bodyHtml, { okText = 'บันทึก', cancelText = 'ยกเลิก', wide = false } = {}) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-wrap';
+    wrap.innerHTML = `
+      <div class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true">
+        <h3>${esc(title)}</h3>
+        <form class="modal-body">${bodyHtml}
+          <div class="modal-actions">
+            ${cancelText ? `<button type="button" class="btn btn-ghost" data-x>${esc(cancelText)}</button>` : ''}
+            <button type="submit" class="btn btn-primary">${esc(okText)}</button>
+          </div>
+        </form>
+      </div>`;
+    document.body.appendChild(wrap);
+    const form = $('form', wrap);
+    const close = (v) => { wrap.remove(); resolve(v); };
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      close(Object.fromEntries(new FormData(form).entries()));
+    });
+    $('[data-x]', wrap)?.addEventListener('click', () => close(null));
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) close(null); });
+    setTimeout(() => $('input,select,textarea', form)?.focus(), 30);
+  });
+}
+
+export const confirmBox = (msg, okText = 'ตกลง') =>
+  modal('ยืนยัน', `<p>${esc(msg)}</p>`, { okText }).then((r) => r !== null);

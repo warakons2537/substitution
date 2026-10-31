@@ -1,5 +1,5 @@
 // ผู้ขอลา: แจ้งขอลา/ขอสอนแทน + คำขอของฉัน
-import { $, $$, esc, toast, thDate } from '../util.js';
+import { $, $$, esc, toast, thDate , confirmBox } from '../util.js';
 import { sb, q, rankData } from '../db.js';
 import { printRequest } from '../print.js';
 import { mountLeaveForm } from '../leaveform.js';
@@ -70,7 +70,7 @@ export async function renderMine(el, { me }) {
         <button class="btn btn-sm" data-cancel="${r.id}">ยกเลิก</button>` : ''}</td></tr>`).join('')}
     </tbody></table></div>` : '<p class="muted">ยังไม่มีคำขอ</p>'}</div>`;
   $$('[data-cancel]', el).forEach((b) => b.addEventListener('click', async () => {
-    if (!confirm('ยกเลิกคำขอนี้?')) return;
+    if (!(await confirmBox('ยกเลิกคำขอนี้?')) ) return;
     try {
       await q(sb.from('sub_records').delete().eq('request_id', b.dataset.cancel));
       await q(sb.from('sub_requests').update({ status: 'cancelled' }).eq('id', b.dataset.cancel));
