@@ -92,7 +92,8 @@ function shell(me) {
 /** วาดเมนูซ้าย/แถบล่าง/แถบสลับระบบ ตามระบบ (โมดูล) ปัจจุบัน */
 function drawNav(me, mod, page) {
   const pages = pagesFor(me);
-  const items = pages.filter((p) => p[0] === 'home' || p[2] === mod || p[0] === 'profile');
+  // เมนูของระบบปัจจุบัน + หน้าผู้ดูแลระบบ (แสดงในทุกระบบสำหรับผู้ดูแล จะได้หาเจอเสมอ) + ข้อมูลฉัน
+  const items = pages.filter((p) => p[0] === 'home' || p[2] === mod || p[0] === 'profile' || p[2] === 'admin');
   $('#side-nav').innerHTML = items.map(([h, t]) => `<a href="#${h}" data-v="${h}">${icon(h)}<span>${esc(t)}</span></a>`).join('')
     + `<div class="sec"></div><a href="../">${icon('link')}<span>ทางเข้า WL</span></a>`;
   const mods = modulesFor(me);
