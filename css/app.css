@@ -171,7 +171,8 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
   .shell { grid-template-columns: minmax(0, 1fr); }
   .side { display: none; }
   .topbar { padding-top: max(8px, env(safe-area-inset-top, 0px)); }
-  .tb-user .nm { display: none; }
+  .tb-user .nm b { max-width: 96px; }
+  .topbar { gap: 8px 10px; } .tb-title { flex: 1 1 0; } .tb-title small { display: none; }
   .main { padding-bottom: calc(var(--bnav-h) + 24px + env(safe-area-inset-bottom, 0px)); }
   .toast { bottom: calc(var(--bnav-h) + 16px + env(safe-area-inset-bottom, 0px)); }
   .welcome { grid-template-columns: auto minmax(0, 1fr); padding: 18px; } .welcome .btn { grid-column: 1 / -1; }
@@ -201,6 +202,19 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .modsw a:hover { color: var(--ink); }
 .modsw a.on { background: var(--nav-on); color: var(--on-nav); box-shadow: inset 0 0 0 1px var(--nav-on-line); }
 @media (max-width: 860px) { .modsw { order: 9; width: 100%; justify-content: stretch; } .modsw a { flex: 1 1 0; padding-inline: 6px; } }
+/* ---------- เมนูผู้ใช้ (ชื่ออยู่แถบบน · กดแล้วมี ข้อมูลของฉัน / ทางเข้า WL / ออกจากระบบ) ---------- */
+.tb-user { position: relative; }
+.tb-userbtn { display: flex; align-items: center; gap: 9px; min-width: 0; border: 1px solid transparent; background: none; border-radius: 99px; padding: 3px 10px 3px 4px; cursor: pointer; text-align: left; }
+.tb-userbtn:hover, .tb-userbtn[aria-expanded="true"] { background: color-mix(in srgb, var(--ink) 8%, transparent); border-color: var(--rule); }
+.tb-userbtn .chev { width: 16px; height: 16px; color: var(--ink-soft); }
+.user-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(300px, calc(100vw - 24px)); background: var(--surface-high); border-radius: 16px; box-shadow: 0 8px 32px rgba(0, 0, 0, .3); z-index: 30; overflow: hidden; display: flex; flex-direction: column; }
+.user-panel[hidden] { display: none; }
+.user-head { display: flex; flex-direction: column; padding: 12px 16px; border-bottom: 1px solid var(--rule); line-height: 1.4; }
+.user-head small { color: var(--ink-soft); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; }
+.user-panel a, .user-panel button { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border: 0; background: none; color: var(--ink); text-decoration: none; cursor: pointer; text-align: left; font-size: .92rem; }
+.user-panel a:hover, .user-panel button:hover { background: color-mix(in srgb, var(--pen-wash) 55%, transparent); }
+#logout { color: var(--red); border-top: 1px solid var(--rule); }
+
 /* ---------- กระดิ่งแจ้งเตือน ---------- */
 .bell-wrap { position: relative; }
 .bell { position: relative; min-width: 40px; }

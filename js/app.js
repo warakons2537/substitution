@@ -79,13 +79,27 @@ function shell(me) {
       <header class="topbar no-print"><div class="tb-title"><b>${esc(BRAND.name)}</b><small id="tt-line"></small></div>
         <div class="modsw" id="modsw" role="tablist" aria-label="เลือกระบบ"></div>
         <div id="bell-root" class="bell-wrap"></div>
-        <div class="tb-user"><span class="avatar" aria-hidden="true">${esc((name.replace(/^(ครู|นาย|นางสาว|นาง)\s*/, '').replace(/^[เแโใไ]/, '')[0]) || '?')}</span>
-          <span class="nm"><b title="${esc(name)}">${esc(name)}</b><small>${esc(dutyText(me))}</small></span>
-          <button class="btn btn-sm" id="logout" title="ออกจากระบบ" aria-label="ออกจากระบบ">${icon('logout')}</button></div></header>
+        <div class="tb-user" id="user-menu">
+          <button type="button" class="tb-userbtn" aria-haspopup="true" aria-expanded="false" aria-label="เมนูผู้ใช้">
+            <span class="avatar" aria-hidden="true">${esc((name.replace(/^(ครู|นาย|นางสาว|นาง)\s*/, '').replace(/^[เแโใไ]/, '')[0]) || '?')}</span>
+            <span class="nm"><b title="${esc(name)}">${esc(name)}</b><small>${esc(dutyText(me))}</small></span>
+            <svg class="i chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+          <div class="user-panel" hidden role="menu">
+            <div class="user-head"><b>${esc(name)}</b><small>${esc(me.email || '')}</small><small>${esc(dutyText(me))}</small></div>
+            <a href="#profile" role="menuitem">${icon('profile')}<span>ข้อมูลของฉัน</span></a>
+            <a href="../" role="menuitem">${icon('link')}<span>ทางเข้า WL (ทุกแอป)</span></a>
+            <button type="button" id="logout" role="menuitem">${icon('logout')}<span>ออกจากระบบ</span></button>
+          </div></div></header>
       <div class="main-pad"><div id="view"></div></div>
       <footer class="app-ver no-print">${esc(BRAND.name)} เวอร์ชัน ${VERSION}</footer></main></div><div id="bnav-root"></div>`;
   bell?.destroy();
   bell = mountBell($('#bell-root'), me);
+  const um = $('#user-menu'); const panel = $('.user-panel', um); const ub = $('.tb-userbtn', um);
+  const setMenu = (on) => { panel.hidden = !on; ub.setAttribute('aria-expanded', String(on)); };
+  ub.addEventListener('click', () => setMenu(panel.hidden));
+  panel.addEventListener('click', (e) => { if (e.target.closest('a')) setMenu(false); });
+  document.addEventListener('click', (e) => { if (!panel.hidden && !um.contains(e.target)) setMenu(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
   $('#logout').addEventListener('click', async () => { bell?.destroy(); bell = null; await auth.signOut(); location.hash = ''; boot(); });
 }
 
