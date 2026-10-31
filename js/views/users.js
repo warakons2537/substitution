@@ -9,6 +9,8 @@ export async function render(el, ctx) {
   // ตารางบุคลากรกลาง (WL Academic) — ถ้ายังไม่ได้ติดตั้งจะไม่แสดงคอลัมน์นี้
   let staffList = [];
   try { staffList = (await q(sb.from('staff').select('id,prefix,first_name,last_name,position,active').eq('active', true).order('sort_order'))) || []; } catch { /* */ }
+  // โปรไฟล์ที่ยังไม่มีบัญชีเข้าสู่ระบบ (ไม่มีใน auth.users) กำหนดสิทธิ์ไม่ได้ — ต้องให้เจ้าของสมัคร/เข้าสู่ระบบก่อน
+  const noAcc = (u) => (u.has_account === false ? 'disabled' : '');
   const staffName = (t) => `${t.prefix || ''}${t.first_name}${t.last_name ? ` ${t.last_name}` : ''}`;
   const guess = (teacher) => {   // เดาจากชื่อครูในตารางสอน: ต้องมีชื่อ (และนามสกุลถ้ามี) อยู่ในข้อความ และเจอคนเดียวเท่านั้น
     if (!teacher) return '';
@@ -22,14 +24,14 @@ export async function render(el, ctx) {
       <label>สิทธิ์<select id="u-r"><option value="*">ทั้งหมด</option><option value="">ไม่มีสิทธิ์</option><option value="teacher">ครู (ไม่มีหน้าที่เสริม)</option>${opts(Object.entries(DUTIES))}</select></label></div>
     <p class="muted small" id="u-n"></p>
     <div class="table-wrap"><table class="tbl"><thead><tr><th>ชื่อ / อีเมล</th><th>สิทธิ์</th><th>ชื่อครู</th>${staffList.length ? '<th>บุคลากร (WL Academic)</th>' : ''}<th>ข้อมูลแบบพิมพ์</th><th></th></tr></thead><tbody>
-    ${users.map((u) => `<tr data-u="${u.user_id}" data-role="${esc(u.role ? (u.duties?.length ? u.duties.join(' ') : 'teacher') : '')}" data-s="${esc(`${u.full_name} ${u.email} ${u.teacher_name || ''} ${u.print_name || ''}`.toLowerCase())}"><td>${esc(u.full_name || '-')}<div class="muted small">${esc(u.email)}</div></td>
-      <td><label class="chk"><input type="checkbox" name="member" ${u.role ? 'checked' : ''}> ใช้งานระบบ (ครู)</label>
-        ${Object.entries(DUTIES).map(([k, t]) => `<label class="chk"><input type="checkbox" name="duty" value="${k}" ${(u.duties || []).includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</td>
-      <td><select name="teacher"><option value="">—</option>${opts([...new Set([...(u.teacher_name ? [u.teacher_name] : []), ...teachers])], u.teacher_name || '')}</select></td>
-      ${staffList.length ? `<td><select name="staff"><option value="">—</option>${opts(staffList.map((t) => [t.id, staffName(t)]), u.staff_id || (u.role ? guess(u.teacher_name) : ''))}</select></td>` : ''}
+    ${users.map((u) => `<tr data-u="${u.user_id}" data-role="${esc(u.role ? (u.duties?.length ? u.duties.join(' ') : 'teacher') : '')}" data-s="${esc(`${u.full_name} ${u.email} ${u.teacher_name || ''} ${u.print_name || ''}`.toLowerCase())}"><td>${esc(u.full_name || '-')}<div class="muted small">${esc(u.email)}</div>${u.has_account === false ? '<span class="chip chip-warn">ยังไม่มีบัญชีเข้าสู่ระบบ</span>' : ''}</td>
+      <td><label class="chk"><input type="checkbox" name="member" ${noAcc(u)} ${u.role ? 'checked' : ''}> ใช้งานระบบ (ครู)</label>
+        ${Object.entries(DUTIES).map(([k, t]) => `<label class="chk"><input type="checkbox" name="duty" value="${k}" ${noAcc(u)} ${(u.duties || []).includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</td>
+      <td><select name="teacher" ${noAcc(u)}><option value="">—</option>${opts([...new Set([...(u.teacher_name ? [u.teacher_name] : []), ...teachers])], u.teacher_name || '')}</select></td>
+      ${staffList.length ? `<td><select name="staff" ${noAcc(u)}><option value="">—</option>${opts(staffList.map((t) => [t.id, staffName(t)]), u.staff_id || (u.role ? guess(u.teacher_name) : ''))}</select></td>` : ''}
       <td>${!u.role ? '' : u.print_name && u.position && u.phone ? '<span class="badge approved">ครบ</span>'
         : `<span class="badge pending">ยังไม่กรอก ${esc([!u.print_name && 'ชื่อ-สกุล', !u.position && 'ตำแหน่ง', !u.phone && 'เบอร์โทร'].filter(Boolean).join(' '))}</span>`}</td>
-      <td><button class="btn btn-sm btn-primary" data-save>บันทึก</button></td></tr>`).join('')}
+      <td><button class="btn btn-sm btn-primary" data-save ${noAcc(u)}>บันทึก</button></td></tr>`).join('')}
     </tbody></table></div></div>`;
   const filter = () => {
     const t = $('#u-q', el).value.trim().toLowerCase(); const r = $('#u-r', el).value; let n = 0;

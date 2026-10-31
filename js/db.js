@@ -6,6 +6,7 @@ const TH = [
   [/Invalid login credentials/i, 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'],
   [/Email not confirmed/i, 'บัญชีนี้ยังไม่ได้ยืนยันอีเมล'],
   [/sub_records_no_double/i, 'มีครูถูกจัดสอนแทน 2 ห้องในคาบเดียวกัน กรุณาเลือกใหม่'],
+  [/sub_users_user_id_fkey/i, 'บัญชีนี้ยังไม่ได้สมัคร/เข้าสู่ระบบ จึงยังกำหนดสิทธิ์ไม่ได้ ให้เจ้าของสมัครหรือเข้าสู่ระบบก่อน'],
   [/row-level security|permission denied/i, 'ไม่มีสิทธิ์ทำรายการนี้'],
   [/Failed to fetch|NetworkError/i, 'เชื่อมต่อฐานข้อมูลไม่ได้ ตรวจสอบอินเทอร์เน็ต'],
   [/sub_(rank_data|role|list_users)|relation "public\.sub_/i, 'ฐานข้อมูลยังไม่มีตารางของระบบสอนแทน ให้รัน supabase/schema.sql ก่อน'],

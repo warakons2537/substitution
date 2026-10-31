@@ -592,9 +592,10 @@ grant execute on function public.sub_leave_decide(uuid, text, text), public.sub_
 drop function if exists public.sub_list_users();
 create function public.sub_list_users()
 returns table (user_id uuid, email text, full_name text, role text, teacher_name text,
-               print_name text, "position" text, position_short text, phone text, staff_id uuid, duties text[])
+               print_name text, "position" text, position_short text, phone text, staff_id uuid, duties text[], has_account boolean)
 language sql stable security definer set search_path = public as $$
-  select p.id, p.email, p.full_name, s.role, s.teacher_name, s.full_name, s.position, s.position_short, s.phone, s.staff_id, s.duties
+  select p.id, p.email, p.full_name, s.role, s.teacher_name, s.full_name, s.position, s.position_short, s.phone, s.staff_id, s.duties,
+         exists (select 1 from auth.users a where a.id = p.id)
   from public.profiles p left join public.sub_users s on s.user_id = p.id
   where public.sub_is_admin()
   order by p.full_name, p.email
