@@ -3,21 +3,22 @@ import { $, $$, esc, toast, dateRange } from '../util.js';
 import { sb, q, rankData, REQ_COLS } from '../db.js';
 import { buildItems, mountPlanner, NONE, noteOf } from '../planner.js';
 import { STATUS, periodText, dateText } from './request.js';
+import { pill, hero } from '../gui.js';
 
 export async function render(el, ctx) {
   const show = sessionStorage.getItem('wlsub-reqfilter') || 'pending';
   let qy = sb.from('sub_requests').select(REQ_COLS).order('date_from', { ascending: show === 'pending' }).limit(200);
   if (show === 'pending') qy = qy.eq('status', 'pending');
   const list = await q(qy);
-  el.innerHTML = `<h2>คิวสอนแทน</h2>
-    <div class="card"><div class="row-between"><div class="tabs">
-      <button data-f="pending" class="${show === 'pending' ? 'on' : ''}">รอพิจารณา</button>
-      <button data-f="all" class="${show === 'all' ? 'on' : ''}">ทั้งหมด</button></div></div>
-    ${list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>ครูที่ลา</th><th>วันที่ลา</th><th>คาบ</th><th>ประเภท</th><th>สถานะ</th><th></th></tr></thead><tbody>
-      ${list.map((r) => `<tr><td>${esc(r.teacher_name)}</td><td>${esc(dateText(r))}</td><td>${esc(periodText(r))}</td>
-        <td>${esc(r.leave_type)}</td><td><span class="badge ${r.status}">${STATUS[r.status]}</span></td>
-        <td>${r.status === 'pending' ? `<button class="btn btn-sm btn-primary" data-open="${r.id}">พิจารณา</button>` : ''}</td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="muted">ไม่มีคำขอ</p>'}</div>
+  el.innerHTML = `<div class="wl-g">${hero('คิวสอนแทน', show === 'pending' ? 'คำขอที่รอฝ่ายวิชาการพิจารณา' : 'คำขอทั้งหมด (ล่าสุด 200 รายการ)')}
+    <div class="g-chips" role="group" aria-label="กรองคำขอ">
+      <button type="button" class="g-chip" data-f="pending" aria-pressed="${show === 'pending'}">รอพิจารณา</button>
+      <button type="button" class="g-chip" data-f="all" aria-pressed="${show === 'all'}">ทั้งหมด</button></div>
+    <section class="g-card">${list.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>ครูที่ลา</th><th>วันที่ลา</th><th>คาบ</th><th>ประเภท</th><th>สถานะ</th><th></th></tr></thead><tbody>
+      ${list.map((r) => `<tr><td class="nowrap"><b>${esc(r.teacher_name)}</b></td><td class="nowrap">${esc(dateText(r))}</td><td>${esc(periodText(r))}</td>
+        <td>${esc(r.leave_type)}</td><td>${pill(r.status, STATUS[r.status])}</td>
+        <td class="nowrap">${r.status === 'pending' ? `<button class="g-btn g-btn-sm" type="button" data-open="${r.id}">พิจารณา</button>` : ''}</td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="g-empty">ไม่มีคำขอ</p>'}</section></div>
     <div id="rq-detail"></div>`;
   $$('[data-f]', el).forEach((b) => b.addEventListener('click', () => { sessionStorage.setItem('wlsub-reqfilter', b.dataset.f); render(el, ctx); }));
   $$('[data-open]', el).forEach((b) => b.addEventListener('click', () => openReq(el, ctx, list.find((r) => r.id === b.dataset.open))));

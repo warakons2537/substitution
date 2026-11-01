@@ -323,7 +323,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .wl-g .g-btn-line { background: var(--g-card); color: var(--g-fg); border-color: var(--g-border); font-weight: 500; }
 .wl-g .g-btn-line:hover { background: var(--g-hover); filter: none; }
 .wl-g a:focus-visible { outline: 3px solid var(--g-gold); outline-offset: 2px; }
-.wl-g .g-note { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 999px; background: var(--g-warn-bg); color: var(--g-warn-fg); font-weight: 500; }
+.wl-g .g-note { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 20px; background: var(--g-warn-bg); color: var(--g-warn-fg); font-weight: 500; }
 .wl-g .g-note a { color: inherit; text-decoration: underline; font-weight: 700; }
 .wl-g .g-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
 .wl-g .g-stat { display: flex; flex-direction: column; justify-content: space-between; gap: 4px; min-height: 104px; padding: 16px 20px; background: var(--g-card); border: 1px solid var(--g-border);
