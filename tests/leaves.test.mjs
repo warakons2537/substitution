@@ -65,4 +65,13 @@ t('ยอดรอบประเมิน: นับเฉพาะป่วย
   assert.equal(roundUsage([L('ก', 'ลาป่วย', '2026-11-02', 24)], 'ก', 2570)[0].level, 'over');
 });
 
+t('สรุปรายครู: ไปราชการไม่นับเป็นวันลา แต่แยกคอลัมน์', () => {
+  const leaves = [{ teacher_name: 'ก', leave_type: 'ลากิจ', date_from: '2026-11-02', days: 2, status: 'approved' },
+    { teacher_name: 'ก', leave_type: 'ไปราชการ', date_from: '2026-11-05', days: 3, status: 'approved' }];
+  const r = summarize(leaves, [], '2026-11-01', '2026-11-30', new Set(['ไปราชการ']))[0];
+  assert.equal(r.leaves, 1); assert.equal(r.days, 2); assert.equal(r.official, 3);
+  const r2 = summarize(leaves, [], '2026-11-01', '2026-11-30')[0];   // ไม่ระบุชุดประเภท = นับทุกอย่างเป็นลา (พฤติกรรมเดิม)
+  assert.equal(r2.days, 5);
+});
+
 console.log(`\nผ่านทั้งหมด ${n} รายการ`);

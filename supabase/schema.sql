@@ -774,3 +774,9 @@ language sql stable security definer set search_path = public as $$
       from public.sub_requests where status in ('pending','approved')), '[]'::jsonb)
   ) end
 $$;
+
+-- =====================================================================
+--  รอบ 6: แยก "ไปราชการ" ออกจากการลา (ไม่นับเป็นวันลาในสถิติ/โควตา แต่ยังหาครูสอนแทนได้) (รันซ้ำได้)
+-- =====================================================================
+alter table public.sub_leave_types add column if not exists is_leave boolean not null default true;
+update public.sub_leave_types set is_leave = false where leave_type = 'ไปราชการ';

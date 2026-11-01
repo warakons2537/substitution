@@ -68,15 +68,17 @@ async function types(el) {
     ${list.map((t) => `<article class="g-ucard" data-ty="${esc(t.leave_type)}"><div class="g-ucard-h"><b>${esc(t.leave_type)}</b></div>
       <div class="g-form"><label>โควตา (วัน)<input type="number" name="quota" min="0" step="0.5" inputmode="decimal" placeholder="ไม่จำกัด" value="${t.quota_days == null ? '' : fmtDays(t.quota_days)}"></label>
         <label>การอนุญาต<select name="appr"><option value="">ตามโหมดเริ่มต้น</option>${Object.entries(MODE).map(([k, x]) => `<option value="${k}" ${t.approval === k ? 'selected' : ''}>${x.split(' (')[0]}</option>`).join('')}</select></label></div>
-      <div class="g-checks"><label class="g-check"><input class="g-chk" type="checkbox" name="cal" ${t.calendar_days ? 'checked' : ''}> นับวันปฏิทิน</label>
+      <div class="g-checks">${'is_leave' in t ? `<label class="g-check"><input class="g-chk" type="checkbox" name="isl" ${t.is_leave ? 'checked' : ''}> นับเป็นวันลา</label>` : ''}<label class="g-check"><input class="g-chk" type="checkbox" name="cal" ${t.calendar_days ? 'checked' : ''}> นับวันปฏิทิน</label>
         <label class="g-check"><input class="g-chk" type="checkbox" name="act" ${t.active ? 'checked' : ''}> ใช้งาน</label></div>
       <div class="g-actions"><button class="g-btn g-btn-sm" type="button" data-save>บันทึก</button></div></article>`).join('')}
     </div>`;
   $$('[data-save]', el).forEach((b) => b.addEventListener('click', async () => {
     const tr = b.closest('[data-ty]'); const qv = tr.querySelector('[name=quota]').value;
     try {
-      await q(sb.from('sub_leave_types').update({ quota_days: qv === '' ? null : +qv, calendar_days: tr.querySelector('[name=cal]').checked, approval: tr.querySelector('[name=appr]').value || null,
-        active: tr.querySelector('[name=act]').checked }).eq('leave_type', tr.dataset.ty));
+      const upd = { quota_days: qv === '' ? null : +qv, calendar_days: tr.querySelector('[name=cal]').checked, approval: tr.querySelector('[name=appr]').value || null,
+        active: tr.querySelector('[name=act]').checked };
+      const isl = tr.querySelector('[name=isl]'); if (isl) upd.is_leave = isl.checked;   // มีเมื่อรัน SQL รอบ 6 แล้ว
+      await q(sb.from('sub_leave_types').update(upd).eq('leave_type', tr.dataset.ty));
       toast('บันทึกแล้ว (การลาที่บันทึกไว้แล้วไม่ถูกคำนวณวันใหม่ จนกว่าจะแก้ไขรายการนั้น)');
     } catch (e) { toast(e.message, 'err'); }
   }));
