@@ -377,9 +377,9 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 
 /* ฟอร์มและช่องกรอก (.wl-g) */
 .wl-g .g-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px 16px; padding: 18px 20px 20px; }
-.wl-g .g-form label { display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 500; color: var(--g-muted); min-width: 0; }
-.wl-g .g-form input, .wl-g .g-form select, .wl-g .g-input { min-height: 48px; padding: 0 16px; border-radius: 16px; border: 1px solid var(--g-border); background: var(--g-card); color: var(--g-fg); font-size: 17px; font-family: inherit; min-width: 0; }
-.wl-g .g-form input:focus-visible, .wl-g .g-form select:focus-visible, .wl-g .g-input:focus-visible { outline: 3px solid var(--g-gold); outline-offset: 2px; }
+.wl-g .g-form label, .wl-g .g-lbl { display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 500; color: var(--g-muted); min-width: 0; }
+.wl-g .g-form input, .wl-g .g-form select, .wl-g .g-lbl input, .wl-g .g-lbl select, .wl-g .g-tbl select, .wl-g .g-tbl .note-in, .wl-g .g-input { min-height: 48px; padding: 0 16px; border-radius: 16px; border: 1px solid var(--g-border); background: var(--g-card); color: var(--g-fg); font-size: 17px; font-family: inherit; min-width: 0; }
+.wl-g .g-form input:focus-visible, .wl-g .g-form select:focus-visible, .wl-g .g-lbl input:focus-visible, .wl-g .g-lbl select:focus-visible, .wl-g .g-tbl select:focus-visible, .wl-g .g-tbl .note-in:focus-visible, .wl-g .g-input:focus-visible { outline: 3px solid var(--g-gold); outline-offset: 2px; }
 .wl-g .g-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .wl-g .g-chk { width: 24px; height: 24px; accent-color: var(--g-primary); cursor: pointer; margin: 0; vertical-align: middle; }
 .wl-g .g-tbl th .g-chk { accent-color: var(--g-gold); }
@@ -387,3 +387,18 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .wl-g .g-card-h .g-input { flex: 0 1 220px; width: 220px; }
 .wl-g .g-card-h h3 { white-space: nowrap; }
 .wl-g .g-btn:disabled { opacity: .45; cursor: not-allowed; filter: none; transform: none; }
+
+/* คอมโพเนนต์ร่วม: ฟอร์มการลา (leaveform.js) · ตัวช่วยจัดครู (planner.js) */
+.wl-g .g-pad { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+.wl-g .g-pad .g-form { padding: 0; }
+.wl-g .g-form .span2 { grid-column: span 2; }
+.wl-g .g-form input:disabled { background: var(--g-hover); color: var(--g-muted); }
+.wl-g .muted { color: var(--g-muted); } .wl-g .small { font-size: 15px; margin: 0; } .wl-g p.warn, .wl-g .warn { color: var(--g-bad-fg); font-weight: 500; }
+.wl-g input[type="file"] { padding: 6px 12px; }
+.wl-g input[type="file"]::file-selector-button { min-height: 36px; padding: 0 16px; margin-right: 12px; border-radius: 999px; border: 1px solid var(--g-border); background: var(--g-card); color: var(--g-fg); font: inherit; font-weight: 500; cursor: pointer; }
+.wl-g .periods { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.wl-g .periods .chk { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border: 1px solid var(--g-border); border-radius: 999px; background: var(--g-card); color: var(--g-fg); font-size: 16px; cursor: pointer; }
+.wl-g .planner .sel-sub { min-width: 260px; max-width: 100%; }
+.wl-g .planner td { min-width: 0; }
+@media (max-width: 640px) { .wl-g .planner .sel-sub { min-width: 200px; } .wl-g .g-form .span2 { grid-column: 1 / -1; } .wl-g .g-pad { padding: 14px 16px 16px; } }
+.wl-g .planner td:first-child { white-space: nowrap; }

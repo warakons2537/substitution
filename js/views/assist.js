@@ -3,12 +3,13 @@ import { $, toast } from '../util.js';
 import { sb, q, rankData } from '../db.js';
 import { mountLeaveForm } from '../leaveform.js';
 import { buildItems, mountPlanner, NONE, noteOf } from '../planner.js';
+import { hero } from '../gui.js';
 
 export async function render(el, { tt }) {
-  el.innerHTML = `<h2>ช่วยจัดครูสอนแทน</h2>
-    <div class="card"><div id="a-form"></div></div>
-    <div class="card"><div id="a-plan"><p class="muted">เลือกครูที่ลาและวันที่</p></div>
-      <div class="actions"><button class="btn btn-primary" id="a-save" disabled>บันทึกการสอนแทน</button></div></div>`;
+  el.innerHTML = `<div class="wl-g">${hero('ช่วยจัดครูสอนแทน', 'เลือกครูที่ลาและวันที่ ระบบแนะนำครูสอนแทนให้ เปลี่ยนได้ก่อนบันทึก')}
+    <section class="g-card"><div id="a-form"></div></section>
+    <section class="g-card"><div class="g-pad"><div id="a-plan"><p class="muted">เลือกครูที่ลาและวันที่</p></div>
+      <div class="g-actions"><button class="g-btn" type="button" id="a-save" disabled>บันทึกการสอนแทน</button></div></div></section></div>`;
   let rank = await rankData();
   let plan = null; let cur = null; let lastKey = '';
 
@@ -24,7 +25,7 @@ export async function render(el, { tt }) {
     const done = items.filter((it) => rank.records.some((r) => r.a === v.teacher && r.d === it.date && r.p === it.p));
     items = items.filter((it) => !done.includes(it));
     plan = mountPlanner($('#a-plan'), { data: tt.data, rank, absent: v.teacher, items });
-    if (done.length) $('#a-plan').insertAdjacentHTML('afterbegin', `<p class="note">ข้าม ${done.length} คาบที่บันทึกไว้แล้ว (แก้ไขได้ที่หน้า "บันทึกการสอนแทน")</p>`);
+    if (done.length) $('#a-plan').insertAdjacentHTML('afterbegin', `<p class="g-note">ข้าม ${done.length} คาบที่บันทึกไว้แล้ว (แก้ไขได้ที่หน้า "บันทึกการสอนแทน")</p>`);
     $('#a-save').disabled = !items.length;
   };
   mountLeaveForm($('#a-form'), { data: tt.data, onChange: rebuild });

@@ -35,12 +35,12 @@ async function openReq(el, ctx, req) {
     const p = proposals.find((x) => x.sub_date === it.date && x.period === it.p);
     if (p) { it.sel = p.substitute_teacher || NONE; it.note = p.note === 'ไม่ต้องสอนแทน' ? '' : p.note; }
   }
-  box.innerHTML = `<div class="card"><h3>${esc(req.teacher_name)} · ${esc(dateText(req))} · ${esc(periodText(req))} · ${esc(req.leave_type)}</h3>
-    <p class="muted small">ค่าที่เลือกไว้ = ที่ผู้ขอลาเลือกแล้ว (คาบที่ให้ฝ่ายวิชาการจัด ระบบเลือกให้) เปลี่ยนได้ก่อนอนุมัติ</p>
+  box.innerHTML = `<div class="wl-g"><section class="g-card"><div class="g-card-h"><h3>${esc(req.teacher_name)} · ${esc(dateText(req))} · ${esc(periodText(req))} · ${esc(req.leave_type)}</h3></div>
+    <div class="g-pad"><p class="muted small">ค่าที่เลือกไว้ = ที่ผู้ขอลาเลือกแล้ว (คาบที่ให้ฝ่ายวิชาการจัด ระบบเลือกให้) เปลี่ยนได้ก่อนอนุมัติ</p>
     <div id="rq-plan"></div>
-    <label>หมายเหตุถึงผู้ขอลา<input id="rq-note" maxlength="300"></label>
-    <div class="actions"><button class="btn" id="rq-reject">ไม่อนุมัติ</button>
-      <button class="btn btn-primary" id="rq-ok">อนุมัติและบันทึกการสอนแทน</button></div></div>`;
+    <label class="g-lbl">หมายเหตุถึงผู้ขอลา<input id="rq-note" maxlength="300"></label>
+    <div class="g-actions"><button class="g-btn g-btn-line g-danger" type="button" id="rq-reject">ไม่อนุมัติ</button>
+      <button class="g-btn" type="button" id="rq-ok">อนุมัติและบันทึกการสอนแทน</button></div></div></section></div>`;
   const plan = mountPlanner($('#rq-plan', box), { data: tt.data, rank, absent: req.teacher_name, items, excludeRequest: req.id });
   box.scrollIntoView({ behavior: 'smooth' });
 
