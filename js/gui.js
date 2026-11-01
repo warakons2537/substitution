@@ -9,7 +9,7 @@ export const ICON = {
 };
 // ป้ายสถานะ: สีคงที่ + ไอคอนเสมอ (st = pending|approved|rejected|cancelled)
 export const pill = (st, label, title = '') => `<span class="g-pill g-${st}"${title ? ` title="${esc(title)}"` : ''}>${ICON[st] || ''}<span>${esc(label)}</span></span>`;
-export const hero = (title, sub, action = '') => `<header class="g-hero"><div class="g-logo"><span class="g-mark" aria-hidden="true">WL</span><span class="g-brand">WL ระบบสอนแทน</span></div><div class="g-hero-text">
+export const hero = (title, sub, action = '') => `<header class="g-hero"><div class="g-logo"><span class="g-mark" aria-hidden="true"><img src="img/logo-192.png" alt=""></span><span class="g-brand">WL ระบบสอนแทน</span></div><div class="g-hero-text">
   <h1>${esc(title)}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${action}</header>`;
 
 // ลดขนาดชื่อเรื่องในฮีโร่ตามความกว้างจอ ให้อยู่บรรทัดเดียว (ไม่ลดต่ำกว่า 18px)
@@ -21,3 +21,8 @@ export function fitHeroTitles(root = document) {
     while (h.scrollWidth > h.clientWidth + 1 && size > 18) { size -= 1; h.style.fontSize = `${size}px`; }
   });
 }
+
+// แถบจัดการลอยแบบกระจกใส (แสดงเมื่อเลือกรายการ) — id = คำนำหน้า id ของปุ่ม/ตัวนับ
+export const bulkBar = (id, actionsHtml) => `<div class="g-bulk" id="${id}-bulk" role="region" aria-label="จัดการรายการที่เลือก" hidden>
+  <div class="g-bulk-top"><span>เลือกแล้ว <b class="num" id="${id}-n">0</b> รายการ</span><button class="g-btn g-btn-line g-btn-sm" type="button" id="${id}-clear">ล้างที่เลือก</button></div>
+  <div class="g-bulk-actions">${actionsHtml}</div></div>`;

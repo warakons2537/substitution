@@ -5,7 +5,7 @@ import { realTeachers } from '../timetable.js';
 import { leavesRange } from '../leaves.js';
 import { stats, rangeText, downloadExcel, printReport, downloadWord } from '../report.js';
 import { printSubNotes } from '../print.js';
-import { pill, hero } from '../gui.js';
+import { pill, hero, bulkBar } from '../gui.js';
 
 const monthRange = (m) => {
   const [y, mm] = m.split('-').map(Number);
@@ -48,8 +48,7 @@ export async function render(el, ctx) {
     <p>ครูลา <b>${st.absents.length}</b> คน <b>${st.absentDays}</b> วัน · <b>${recs.length}</b> คาบ (สอนแทน ${st.covered} · ไม่ต้องสอนแทน ${st.none})</p>
     <div class="g-actions"><button class="g-btn" type="button" id="rp-xlsx">ดาวน์โหลด Excel (6 แผ่นงาน)</button>
       <button class="g-btn g-btn-line" type="button" id="rp-print">พิมพ์รายงานสรุป A4</button><button class="g-btn g-btn-line" type="button" id="rp-word">ดาวน์โหลด Word</button></div></div></section>
-    <section class="g-card"><div class="g-card-h"><h3>พิมพ์บันทึกการสอนแทนแทนครู</h3>
-      <button class="g-btn g-btn-sm" type="button" id="rp-sel" disabled>พิมพ์ที่เลือก</button></div>
+    <section class="g-card"><div class="g-card-h"><h3>พิมพ์บันทึกการสอนแทนแทนครู</h3></div>
       <div class="g-pad" style="padding-bottom:0"><p class="g-sub">1 แผ่นต่อครูที่ลา 1 คน 1 วัน · ชื่อและตำแหน่งมาจาก "ข้อมูลของฉัน" ของครูคนนั้น</p></div>
       ${groups.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th><input class="g-chk" type="checkbox" id="rp-all" aria-label="เลือกทั้งหมด"></th><th>วันที่</th><th>ครูที่ลา</th><th>ประเภท</th><th>คาบ</th><th>ข้อมูลครู</th><th></th></tr></thead><tbody>
         ${groups.map((g, i) => `<tr><td><input class="g-chk rp-pick" type="checkbox" value="${i}" aria-label="เลือกรายการ"></td>
@@ -57,7 +56,8 @@ export async function render(el, ctx) {
           <td>${g.recs.map((r) => r.period).join(', ')}</td>
           <td>${prof[g.name]?.full_name ? pill('approved', 'มี') : pill('pending', 'ยังไม่กรอก (ใช้ชื่อในตารางสอน)')}</td>
           <td><button class="g-btn g-btn-line g-btn-sm" type="button" data-p="${i}">พิมพ์</button></td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="g-empty">ไม่มีรายการในช่วงนี้</p>'}</section></div>`;
+      </tbody></table></div>` : '<p class="g-empty">ไม่มีรายการในช่วงนี้</p>'}</section>
+    ${groups.length ? bulkBar('rb', '<button class="g-btn" type="button" id="rp-sel">พิมพ์ที่เลือก</button>') : ''}</div>`;
 
   const form = $('#rp-form', el);
   $('#rp-month', el).addEventListener('change', (e) => {
@@ -81,9 +81,10 @@ export async function render(el, ctx) {
   const job = (idx) => idx.map((i) => { const g = groups[i];
     return { ...g, teacher: { full_name: prof[g.name]?.full_name || g.name, position_short: prof[g.name]?.position_short || '' } }; });
   const picks = () => $$('.rp-pick:checked', el).map((c) => +c.value);
-  const sync = () => { const n = picks().length; const b = $('#rp-sel', el); b.disabled = !n; b.textContent = n ? `พิมพ์ที่เลือก (${n})` : 'พิมพ์ที่เลือก'; };
+  const sync = () => { const bar = $('#rb-bulk', el); if (bar) { const n = picks().length; bar.hidden = !n; $('#rb-n', el).textContent = n; } };
+  $('#rb-clear', el)?.addEventListener('click', () => { $$('.rp-pick, #rp-all', el).forEach((c) => { c.checked = false; }); sync(); });
   $('#rp-all', el)?.addEventListener('change', (e) => { $$('.rp-pick', el).forEach((c) => { c.checked = e.target.checked; }); sync(); });
   $$('.rp-pick', el).forEach((c) => c.addEventListener('change', sync));
-  $('#rp-sel', el).addEventListener('click', () => printSubNotes(job(picks())));
+  $('#rp-sel', el)?.addEventListener('click', () => printSubNotes(job(picks())));
   $$('[data-p]', el).forEach((b) => b.addEventListener('click', () => printSubNotes(job([+b.dataset.p]))));
 }
