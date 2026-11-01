@@ -77,7 +77,8 @@ function shell(me) {
       <div class="brand"><img class="mark" src="img/logo-192.png" alt=""></div>
       <nav class="nav" id="side-nav"></nav>
     </aside><main class="main">
-      <header class="topbar no-print"><div class="tb-title"><b>${esc(BRAND.name)}</b><small id="tt-line"></small></div>
+      <header class="topbar no-print"><div class="tb-title"><b id="tb-page">${esc(BRAND.name)}</b><small id="tt-line"></small></div>
+        <div class="tb-clock" id="tb-clock" aria-hidden="true"></div><div class="tb-online" id="tb-online"></div>
         <div class="modsw" id="modsw" role="tablist" aria-label="เลือกระบบ"></div>
         <div id="bell-root" class="bell-wrap"></div>
         <div class="tb-user" id="user-menu">
@@ -90,7 +91,8 @@ function shell(me) {
             <a href="#profile" role="menuitem">${icon('profile')}<span>ข้อมูลของฉัน</span></a>
             <a href="../" role="menuitem">${icon('link')}<span>ทางเข้า WL (ทุกแอป)</span></a>
             <button type="button" id="logout" role="menuitem">${icon('logout')}<span>ออกจากระบบ</span></button>
-          </div></div></header>
+          </div></div>
+        <button type="button" class="tb-logout" id="logout-btn" aria-label="ออกจากระบบ" title="ออกจากระบบ">${icon('logout')}</button></header>
       <div class="main-pad"><div id="view"></div></div>
       <footer class="app-ver no-print">${esc(BRAND.name)} เวอร์ชัน ${VERSION}</footer></main></div><div id="bnav-root"></div>`;
   bell?.destroy();
@@ -101,8 +103,20 @@ function shell(me) {
   panel.addEventListener('click', (e) => { if (e.target.closest('a')) setMenu(false); });
   document.addEventListener('click', (e) => { if (!panel.hidden && !um.contains(e.target)) setMenu(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
-  $('#logout').addEventListener('click', async () => { bell?.destroy(); bell = null; await auth.signOut(); location.hash = ''; boot(); });
+  const doLogout = async () => { bell?.destroy(); bell = null; clearInterval(clockTimer); await auth.signOut(); location.hash = ''; boot(); };
+  $('#logout').addEventListener('click', doLogout);
+  $('#logout-btn').addEventListener('click', doLogout);
+  // วันที่-เวลาปัจจุบัน (จอกว้าง) และสถานะออนไลน์
+  clearInterval(clockTimer);
+  const tick = () => {
+    const d = new Date();
+    $('#tb-clock').textContent = `${d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' })} · ${d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })} น.`;
+  };
+  tick(); clockTimer = setInterval(tick, 1000);
+  const net = () => { const on = navigator.onLine; const el = $('#tb-online'); el.className = `tb-online ${on ? 'on' : 'off'}`; el.textContent = on ? 'ออนไลน์' : 'ออฟไลน์'; };
+  window.addEventListener('online', net); window.addEventListener('offline', net); net();
 }
+let clockTimer = null;
 
 /** วาดเมนูซ้าย/แถบล่าง/แถบสลับระบบ ตามระบบ (โมดูล) ปัจจุบัน */
 function drawNav(me, mod, page) {
@@ -136,6 +150,7 @@ async function route() {
     mod = mods.includes(last) ? last : mods[0] || 'leave';
   } else { try { sessionStorage.setItem(MOD_KEY, mod); } catch { /* */ } }
   drawNav(me, mod, item[0]);
+  $('#tb-page').textContent = item[0] === 'home' ? BRAND.name : item[1];
   const view = $('#view');
   $('#tt-line').textContent = ctx.tt ? `ตารางสอน: ปีการศึกษา ${ctx.tt.academic_year} ภาคเรียนที่ ${ctx.tt.term} · ${ctx.tt.name}` : 'ยังไม่มีตารางสอน';
   if (item[4] && !ctx.tt) {

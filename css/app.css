@@ -476,3 +476,20 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 @keyframes g-bulk-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .wl-g .g-bulk { animation: none; } }
 @media (max-width: 640px) { .wl-g .g-bulk-top { flex: 1 1 100%; justify-content: space-between; } .wl-g .g-bulk-actions { flex: 1 1 100%; } .wl-g .g-bulk-actions .g-btn { flex: 1 1 0; } }
+
+/* แถบบน แบบ WL Admin: ชื่อหน้า + วันที่-เวลา + สถานะออนไลน์ + ปุ่มออกจากระบบวงกลม */
+.tb-clock { display: none; align-items: center; font-size: .85rem; color: var(--ink-soft); border: 1px solid var(--rule); background: var(--sheet); border-radius: 999px; padding: 4px 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tb-online { display: none; align-items: center; gap: 6px; font-size: .85rem; color: var(--ink-soft); white-space: nowrap; }
+.tb-online::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+.tb-online.off::before { background: var(--red); }
+.tb-logout { display: none; width: 40px; height: 40px; place-items: center; border-radius: 50%; border: 1px solid var(--outline); background: none; color: var(--ink); cursor: pointer; flex: none; }
+.tb-logout:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.tb-logout:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.tb-logout svg { width: 20px; height: 20px; }
+@media (min-width: 600px) { .tb-logout { display: grid; } }
+@media (min-width: 1280px) { .tb-clock { display: inline-flex; } }
+@media (min-width: 1100px) { .tb-online { display: inline-flex; } }
+.topbar { flex-wrap: nowrap; } @media (max-width: 599px) { .topbar { flex-wrap: wrap; } }
+.tb-title b { font-size: 1.15rem; line-height: 1.25; }
+@media (max-width: 1100px) { .tb-user .nm small { display: none; } .tb-user .nm b { max-width: 150px; } .tb-userbtn .nm { min-width: 0; } }
+@media (min-width: 600px) { .tb-title { flex: 1 1 120px; min-width: 0; } .tb-title b, .tb-title small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .tb-user { flex: 0 0 auto; } }
