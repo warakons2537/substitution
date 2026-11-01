@@ -290,3 +290,60 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .login-back:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .login-cover .login-back { color: var(--cover-ink); border-color: color-mix(in srgb, var(--cover-ink) 55%, transparent); margin: 0; }
 .login-cover .login-back:hover { background: rgba(255, 255, 255, .14); }
+
+/* =====================================================================
+   WL Design System · บอร์ด G (ทางการ + มนเป็นมิตร) — ใช้เฉพาะหน้าหลักก่อน (ครอบด้วย .wl-g)
+   primary = app-substitution #6b1022 ใช้เฉพาะฮีโร่ · ปุ่มหลักทอง #d9a531 · ป้ายสถานะสีคงที่ + ไอคอนเสมอ
+   ===================================================================== */
+.wl-g {
+  --g-primary: #6b1022; --g-on-primary: #fff; --g-gold: #d9a531; --g-on-gold: #16202e; --g-gold-on-primary: #f0cf7a;
+  --g-card: #fff; --g-fg: #16202e; --g-muted: #4a5568; --g-border: #cbd2dc; --g-soft: #e1e5eb; --g-hover: #f6f8fb;
+  --g-warn-bg: #fbebc8; --g-warn-fg: #6b3f00; --g-bad-bg: #f8dada; --g-bad-fg: #8a1c1c;
+  font-family: "Sarabun", "Noto Sans Thai", system-ui, sans-serif; font-size: 17px; line-height: 1.6; color: var(--g-fg);
+  display: flex; flex-direction: column; gap: 22px;
+}
+@media (prefers-color-scheme: dark) {
+  .wl-g { --g-primary: #4a0b17; --g-card: #2a2023; --g-fg: #f1e9e6; --g-muted: #cdbfc2; --g-border: #4a3d40; --g-soft: #3a2f32; --g-hover: #33282b;
+    --g-warn-bg: #40331a; --g-warn-fg: #f0c06a; --g-bad-bg: #45202a; --g-bad-fg: #ff8f85; }
+}
+.wl-g h1, .wl-g h3 { font-family: inherit; text-wrap: balance; }
+.wl-g .g-hero { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; overflow: hidden;
+  padding: 28px 24px 28px 108px; background: var(--g-primary); color: #fff; border-radius: 24px; border-bottom: 4px solid var(--g-gold); }
+.wl-g .g-hero::before { content: "WL"; position: absolute; left: 24px; top: 50%; transform: translateY(-50%); width: 60px; height: 60px; display: grid; place-items: center;
+  font-size: 22px; font-weight: 700; line-height: 1; border: 2px solid var(--g-gold); border-radius: 50%; color: var(--g-gold); }
+.wl-g .g-hero::after { content: ""; position: absolute; pointer-events: none; inset: 0 0 0 55%; background: repeating-linear-gradient(135deg, rgba(255,255,255,.06) 0 2px, transparent 2px 14px); }
+.wl-g .g-hero-text, .wl-g .g-hero .g-btn { position: relative; z-index: 1; }
+.wl-g .g-hero-text { min-width: 0; }
+.wl-g .g-eyebrow { font-size: 14px; letter-spacing: .08em; font-weight: 700; color: var(--g-gold-on-primary); }
+.wl-g .g-hero h1 { margin: 0; font-size: 36px; line-height: 1.25; font-weight: 700; color: #fff; }
+.wl-g .g-hero p { margin: 0; font-size: 17px; color: #d6deea; }
+.wl-g .g-btn { min-height: 48px; padding: 0 22px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; font-weight: 700; text-decoration: none;
+  background: var(--g-gold); border: 1px solid var(--g-gold); color: var(--g-on-gold); transition: filter .2s ease, transform .12s ease; }
+.wl-g .g-btn:hover { filter: brightness(1.06); } .wl-g .g-btn:active { transform: scale(.97); }
+.wl-g .g-btn-line { background: var(--g-card); color: var(--g-fg); border-color: var(--g-border); font-weight: 500; }
+.wl-g .g-btn-line:hover { background: var(--g-hover); filter: none; }
+.wl-g a:focus-visible { outline: 3px solid var(--g-gold); outline-offset: 2px; }
+.wl-g .g-note { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 999px; background: var(--g-warn-bg); color: var(--g-warn-fg); font-weight: 500; }
+.wl-g .g-note a { color: inherit; text-decoration: underline; font-weight: 700; }
+.wl-g .g-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+.wl-g .g-stat { display: flex; flex-direction: column; justify-content: space-between; gap: 4px; min-height: 104px; padding: 16px 20px; background: var(--g-card); border: 1px solid var(--g-border);
+  border-radius: 20px; color: inherit; text-decoration: none; transition: border-color .2s ease, background .2s ease, transform .12s ease; }
+.wl-g .g-stat:hover { border-color: var(--g-gold); background: var(--g-hover); } .wl-g .g-stat:active { transform: scale(.98); }
+.wl-g .g-stat b { font-size: 34px; line-height: 1.1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wl-g .g-stat span { font-size: 15px; font-weight: 500; color: var(--g-muted); }
+.wl-g .g-card { background: var(--g-card); border: 1px solid var(--g-border); border-radius: 20px; overflow: hidden; }
+.wl-g .g-card-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--g-soft); }
+.wl-g .g-card-h h3 { margin: 0; font-size: 19px; font-weight: 700; }
+.wl-g .g-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px; padding: 6px 20px; border-bottom: 1px solid var(--g-soft); transition: background .2s ease; }
+.wl-g .g-row:last-child { border-bottom: 0; } .wl-g .g-row:hover { background: var(--g-hover); }
+.wl-g .g-row .g-sub { color: var(--g-muted); font-size: 15px; }
+.wl-g .g-empty { margin: 0; padding: 22px 20px; color: var(--g-muted); text-align: center; }
+.wl-g .g-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 14px 2px 10px; border-radius: 999px; font-size: 15px; font-weight: 500; white-space: nowrap; background: var(--g-warn-bg); color: var(--g-warn-fg); }
+.wl-g .g-pill svg { width: 16px; height: 16px; flex: none; }
+.wl-g .num { font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .wl-g .g-hero { padding: 22px 16px 22px 88px; } .wl-g .g-hero::before { left: 16px; width: 52px; height: 52px; font-size: 19px; }
+  .wl-g .g-hero h1 { font-size: 28px; } .wl-g .g-hero .g-btn { flex: 1 1 100%; margin-left: -72px; }
+  .wl-g .g-row { padding: 8px 16px; flex-wrap: wrap; } .wl-g .g-card-h { padding: 12px 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .wl-g .g-btn, .wl-g .g-stat, .wl-g .g-row { transition: none; } .wl-g .g-btn:active, .wl-g .g-stat:active { transform: none; } }
