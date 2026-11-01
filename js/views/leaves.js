@@ -3,7 +3,8 @@ import { $, $$, esc, opts, toast, todayISO, thDate, modal, confirmBox } from '..
 import { sb, q, settings } from '../db.js';
 import { has } from '../perm.js';
 import { realTeachers } from '../timetable.js';
-import { loadRules, countDays, usage, fiscalYear, fiscalRange, fmtDays } from '../leaves.js';
+import { loadRules, countDays, usage, fiscalYear, fiscalRange, fmtDays, roundUsage } from '../leaves.js';
+import { EVAL_LIMIT } from '../config.js';
 
 const NAME_KEY = 'wlsub-leave-filter';
 
@@ -55,6 +56,7 @@ export async function render(el, ctx) {
     rejected: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
     cancelled: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 8h9"/></svg>' };
   const pill = (st) => `<span class="g-pill g-${st}">${ICON[st] || ''}<span>${LEAVE_STATUS[st]}</span></span>`;
+  const gpill = (st, t) => `<span class="g-pill g-${st}">${ICON[st] || ''}<span>${t}</span></span>`;
   const chips = [['', 'ทั้งหมด', all.length], ...types.map((t) => [t.leave_type, t.leave_type, all.filter((l) => l.leave_type === t.leave_type).length])];
   el.innerHTML = `<div class="wl-g">
     <header class="g-hero"><div class="g-logo"><span class="g-mark" aria-hidden="true"><img src="img/logo-192.png" alt=""></span><span class="g-brand">WL ระบบสอนแทน</span></div><div class="g-hero-text"><div class="g-eyebrow">ระบบลา</div>
@@ -66,6 +68,12 @@ export async function render(el, ctx) {
     <div class="g-chips" role="group" aria-label="กรองตามประเภทการลา">${chips.map(([v, t, n]) => `<button type="button" class="g-chip" data-ty="${esc(v)}" aria-pressed="${v === typeF}"><span>${esc(t)}</span><b class="num">${n}</b></button>`).join('')}</div>
     <p class="g-sub">นับวันทำการ จันทร์–ศุกร์ ไม่รวมวันหยุดที่ตั้งไว้ · ยอดรวมการลาที่ "รอตรวจ" และ "บันทึกแล้ว"</p>
     <section class="g-card"><div class="g-card-h"><h3>${teacherF || !staff ? `สรุปการลา${teacherF ? ` · ${esc(teacherF)}` : ''}` : 'สรุปการลารายครู (วัน)'}</h3></div>${summary}</section>
+    ${teacherF || !staff ? `<section class="g-card"><div class="g-card-h"><h3>รอบการประเมิน · ${esc(EVAL_LIMIT.types.join(' + '))}</h3></div><div class="g-pad">
+      ${roundUsage(all, teacherF || me.teacher, fy).map((r) => `<div class="g-round"><div class="g-round-h"><b>${esc(r.label)}</b>
+        ${gpill(r.level === 'over' ? 'rejected' : r.level === 'near' ? 'pending' : 'approved', r.level === 'over' ? 'เกินเกณฑ์อ้างอิง' : r.level === 'near' ? 'ใกล้ถึงเกณฑ์' : 'ยังอยู่ในเกณฑ์')}</div>
+        <div class="g-meter" role="img" aria-label="${fmtDays(r.used)} จาก ${r.limit} วัน"><i class="${r.level}" style="width:${Math.min(100, Math.round(r.used / r.limit * 100))}%"></i></div>
+        <div class="g-sub"><b class="num">${fmtDays(r.used)}</b> / ${r.limit} วันทำการ</div></div>`).join('')}
+      <p class="g-sub">เกณฑ์ ${EVAL_LIMIT.days} วันทำการต่อรอบเป็นค่าอ้างอิงเบื้องต้น (ลาป่วย+ลากิจ) ไม่ใช่ข้อสรุปทางกฎหมาย กรุณาตรวจสอบกับระเบียบ/ต้นสังกัด · นับตามวันที่เริ่มลา</p></div></section>` : ''}
     <section class="g-card"><div class="g-card-h"><h3>รายการ (${rows.length})</h3></div>${rows.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>วันที่</th>${staff ? '<th>ครู</th>' : ''}<th>ประเภท</th><th class="c">วัน</th><th>เหตุผล</th><th>สถานะ</th><th></th></tr></thead><tbody>
       ${rows.map((l) => { const canDel = admin || (!staff && l.status === 'pending' && !l.request_id); const canEdit = hr || (!l.request_id && ['pending', 'approved'].includes(l.status) && l.teacher_name === me.teacher);
         return `<tr><td class="nowrap">${esc(l.date_from === l.date_to ? thDate(l.date_from) : `${thDate(l.date_from)} – ${thDate(l.date_to)}`)}${l.half ? ` <span class="g-sub">(${l.half === 'am' ? 'เช้า' : 'บ่าย'})</span>` : ''}</td>

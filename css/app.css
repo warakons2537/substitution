@@ -493,3 +493,10 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .tb-title b { font-size: 1.15rem; line-height: 1.25; }
 @media (max-width: 1100px) { .tb-user .nm small { display: none; } .tb-user .nm b { max-width: 150px; } .tb-userbtn .nm { min-width: 0; } }
 @media (min-width: 600px) { .tb-title { flex: 1 1 120px; min-width: 0; } .tb-title b, .tb-title small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .tb-user { flex: 0 0 auto; } }
+
+/* รอบการประเมิน: แถบความคืบหน้า (มีตัวเลข + ป้ายสถานะกำกับ ไม่พึ่งสีอย่างเดียว) */
+.wl-g .g-round { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 8px; }
+.wl-g .g-round-h { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.wl-g .g-meter { height: 12px; border-radius: 999px; background: var(--g-soft); overflow: hidden; }
+.wl-g .g-meter i { display: block; height: 100%; border-radius: 999px; background: #2f7d4f; }
+.wl-g .g-meter i.near { background: #c98a12; } .wl-g .g-meter i.over { background: #b42318; }
