@@ -2,6 +2,7 @@
 import { $, $$, esc, opts, todayISO, addDays, thDate } from '../util.js';
 import { sb, q } from '../db.js';
 import { ROLES } from '../config.js';
+import { pill, hero } from '../gui.js';
 
 const TBL = { sub_records: 'รายการสอนแทน', sub_requests: 'คำขอลา/สอนแทน', sub_users: 'ผู้ใช้และสิทธิ์',
   sub_settings: 'ตั้งค่า', sub_timetables: 'ตารางสอน', sub_leaves: 'ทะเบียนการลา', sub_leave_types: 'ประเภท/โควตาการลา', sub_holidays: 'วันหยุด' };
@@ -39,10 +40,10 @@ function diff(r) {
   const o = r.old_data || {}; const n = r.new_data || {};
   const keys = [...new Set([...Object.keys(o), ...Object.keys(n)])].filter((k) => !SKIP.has(k)
     && (r.op !== 'UPDATE' || JSON.stringify(o[k]) !== JSON.stringify(n[k])));
-  if (!keys.length) return '<p class="muted small">ไม่มีข้อมูลที่เปลี่ยน</p>';
-  return `<table class="tbl"><thead><tr><th>ข้อมูล</th><th>ก่อน</th><th>หลัง</th></tr></thead><tbody>
+  if (!keys.length) return '<p class="g-sub">ไม่มีข้อมูลที่เปลี่ยน</p>';
+  return `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>ข้อมูล</th><th>ก่อน</th><th>หลัง</th></tr></thead><tbody>
     ${keys.map((k) => `<tr><td>${esc(F[k] || k)}</td><td>${r.op === 'INSERT' ? '' : esc(val(k, o[k]))}</td>
-      <td>${r.op === 'DELETE' ? '' : esc(val(k, n[k]))}</td></tr>`).join('')}</tbody></table>`;
+      <td>${r.op === 'DELETE' ? '' : esc(val(k, n[k]))}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 export async function render(el) {
@@ -55,22 +56,22 @@ export async function render(el) {
   if (f.who) qy = qy.ilike('email', `%${f.who}%`);
   const list = await q(qy);
 
-  el.innerHTML = `<h2>บันทึกการใช้งาน</h2>
-    <div class="card"><form id="a-form" class="form-grid">
+  el.innerHTML = `<div class="wl-g">${hero('บันทึกการใช้งาน', 'ดูอย่างเดียว แก้ไขหรือลบไม่ได้ · มีค่าก่อน/หลัง')}
+    <section class="g-card"><div class="g-pad"><form id="a-form" class="g-form">
       <label>ตั้งแต่<input type="date" name="from" value="${esc(f.from)}" required></label>
       <label>ถึง<input type="date" name="to" value="${esc(f.to)}" required></label>
       <label>ข้อมูล<select name="tbl"><option value="">ทั้งหมด</option>${opts(Object.entries(TBL), f.tbl)}</select></label>
       <label>การกระทำ<select name="op"><option value="">ทั้งหมด</option>${opts(Object.entries(OP), f.op)}</select></label>
       <label>อีเมลผู้ทำ<input name="who" value="${esc(f.who)}" placeholder="บางส่วนของอีเมล"></label>
-      <div class="actions"><button class="btn btn-primary" type="submit">ค้นหา</button></div>
+      <div class="g-actions"><button class="g-btn" type="submit">ค้นหา</button></div>
     </form>
-    <p class="muted small">${list.length} รายการ${list.length === 500 ? ' (แสดงสูงสุด 500 รายการล่าสุด ให้แคบช่วงวันที่ลง)' : ''} · ดูได้อย่างเดียว แก้ไขหรือลบไม่ได้</p>
-    <div class="table-wrap"><table class="tbl"><thead><tr><th>เวลา</th><th>ผู้ทำ</th><th>ข้อมูล</th><th>การกระทำ</th><th>รายละเอียด</th><th></th></tr></thead><tbody>
-    ${list.map((r, i) => `<tr><td>${esc(dt(r.at))}</td><td>${esc(r.email || 'ระบบ')}</td><td>${esc(TBL[r.tbl] || r.tbl)}</td>
-      <td><span class="badge ${OPCLS[r.op]}">${OP[r.op]}</span></td><td>${esc(summary(r))}</td>
-      <td><button class="btn btn-sm" data-i="${i}">ก่อน/หลัง</button></td></tr>
+    <p class="g-sub">${list.length} รายการ${list.length === 500 ? ' (แสดงสูงสุด 500 รายการล่าสุด ให้แคบช่วงวันที่ลง)' : ''}</p></div></section>
+    <section class="g-card"><div class="g-scroll"><table class="g-tbl"><thead><tr><th>เวลา</th><th>ผู้ทำ</th><th>ข้อมูล</th><th>การกระทำ</th><th>รายละเอียด</th><th></th></tr></thead><tbody>
+    ${list.map((r, i) => `<tr><td class="nowrap">${esc(dt(r.at))}</td><td>${esc(r.email || 'ระบบ')}</td><td>${esc(TBL[r.tbl] || r.tbl)}</td>
+      <td>${pill(OPCLS[r.op], OP[r.op])}</td><td>${esc(summary(r))}</td>
+      <td><button class="g-btn g-btn-line g-btn-sm" type="button" data-i="${i}">ก่อน/หลัง</button></td></tr>
       <tr data-d="${i}" hidden><td colspan="6"></td></tr>`).join('')}
-    </tbody></table></div></div>`;
+    </tbody></table></div>${list.length ? '' : '<p class="g-empty">ไม่มีรายการในช่วงนี้</p>'}</section></div>`;
 
   $('#a-form', el).addEventListener('submit', (e) => {
     e.preventDefault();

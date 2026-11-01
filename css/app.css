@@ -447,3 +447,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .wl-g .g-addrow .g-input { flex: 1 1 220px; width: auto; }
 .wl-g .g-checks .g-check, .wl-g .g-ucard .g-check { flex-direction: row; align-items: center; }
 .wl-g .g-check .g-chk { flex: none; }
+
+/* ตารางท้าย (รวม) และข้อความช่วย */
+.wl-g .g-tbl tfoot th { background: var(--g-hover); color: var(--g-fg); font-weight: 700; border-top: 2px solid var(--g-border); }
+.wl-g .g-pad > .g-sub { margin: 0; }

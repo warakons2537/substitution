@@ -5,6 +5,7 @@ import { realTeachers } from '../timetable.js';
 import { leavesRange } from '../leaves.js';
 import { stats, rangeText, downloadExcel, printReport, downloadWord } from '../report.js';
 import { printSubNotes } from '../print.js';
+import { pill, hero } from '../gui.js';
 
 const monthRange = (m) => {
   const [y, mm] = m.split('-').map(Number);
@@ -37,27 +38,26 @@ export async function render(el, ctx) {
     g.recs.push(r);
   }
 
-  el.innerHTML = `<h2>รายงาน</h2>
-    <div class="card"><form id="rp-form" class="form-grid">
+  el.innerHTML = `<div class="wl-g">${hero('รายงาน', esc(rangeText(f.from, f.to)))}
+    <section class="g-card"><div class="g-pad"><form id="rp-form" class="g-form">
       <label>เดือน<input type="month" id="rp-month" value="${f.from.slice(0, 7)}"></label>
       <label>ตั้งแต่<input type="date" name="from" value="${f.from}" required></label>
       <label>ถึง<input type="date" name="to" value="${f.to}" required></label>
-      <div class="actions"><button class="btn btn-primary" type="submit">แสดง</button></div>
+      <div class="g-actions"><button class="g-btn" type="submit">แสดง</button></div>
     </form>
-    <p><b>${esc(rangeText(f.from, f.to))}</b> · ครูลา ${st.absents.length} คน ${st.absentDays} วัน · ${recs.length} คาบ
-      (สอนแทน ${st.covered} · ไม่ต้องสอนแทน ${st.none})</p>
-    <div class="actions"><button class="btn btn-primary" id="rp-xlsx">ดาวน์โหลด Excel (6 แผ่นงาน)</button>
-      <button class="btn" id="rp-print">พิมพ์รายงานสรุป A4</button><button class="btn" id="rp-word">ดาวน์โหลด Word</button></div></div>
-    <div class="card"><div class="row-between"><h3>พิมพ์บันทึกการสอนแทนแทนครู</h3>
-      <button class="btn btn-sm btn-primary" id="rp-sel" disabled>พิมพ์ที่เลือก</button></div>
-      <p class="muted small">1 แผ่นต่อครูที่ลา 1 คน 1 วัน · ชื่อและตำแหน่งมาจาก "ข้อมูลของฉัน" ของครูคนนั้น</p>
-      ${groups.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th><input type="checkbox" id="rp-all"></th><th>วันที่</th><th>ครูที่ลา</th><th>ประเภท</th><th>คาบ</th><th>ข้อมูลครู</th><th></th></tr></thead><tbody>
-        ${groups.map((g, i) => `<tr><td><input type="checkbox" class="rp-pick" value="${i}"></td>
-          <td>${esc(thDay(g.date))} ${esc(thDate(g.date))}</td><td>${esc(g.name)}</td><td>${esc(g.leave_type)}</td>
+    <p>ครูลา <b>${st.absents.length}</b> คน <b>${st.absentDays}</b> วัน · <b>${recs.length}</b> คาบ (สอนแทน ${st.covered} · ไม่ต้องสอนแทน ${st.none})</p>
+    <div class="g-actions"><button class="g-btn" type="button" id="rp-xlsx">ดาวน์โหลด Excel (6 แผ่นงาน)</button>
+      <button class="g-btn g-btn-line" type="button" id="rp-print">พิมพ์รายงานสรุป A4</button><button class="g-btn g-btn-line" type="button" id="rp-word">ดาวน์โหลด Word</button></div></div></section>
+    <section class="g-card"><div class="g-card-h"><h3>พิมพ์บันทึกการสอนแทนแทนครู</h3>
+      <button class="g-btn g-btn-sm" type="button" id="rp-sel" disabled>พิมพ์ที่เลือก</button></div>
+      <div class="g-pad" style="padding-bottom:0"><p class="g-sub">1 แผ่นต่อครูที่ลา 1 คน 1 วัน · ชื่อและตำแหน่งมาจาก "ข้อมูลของฉัน" ของครูคนนั้น</p></div>
+      ${groups.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th><input class="g-chk" type="checkbox" id="rp-all" aria-label="เลือกทั้งหมด"></th><th>วันที่</th><th>ครูที่ลา</th><th>ประเภท</th><th>คาบ</th><th>ข้อมูลครู</th><th></th></tr></thead><tbody>
+        ${groups.map((g, i) => `<tr><td><input class="g-chk rp-pick" type="checkbox" value="${i}" aria-label="เลือกรายการ"></td>
+          <td class="nowrap">${esc(thDay(g.date))} ${esc(thDate(g.date))}</td><td>${esc(g.name)}</td><td>${esc(g.leave_type)}</td>
           <td>${g.recs.map((r) => r.period).join(', ')}</td>
-          <td>${prof[g.name]?.full_name ? '<span class="badge approved">มี</span>' : '<span class="badge pending">ยังไม่กรอก (ใช้ชื่อในตารางสอน)</span>'}</td>
-          <td><button class="btn btn-sm" data-p="${i}">พิมพ์</button></td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="muted">ไม่มีรายการในช่วงนี้</p>'}</div>`;
+          <td>${prof[g.name]?.full_name ? pill('approved', 'มี') : pill('pending', 'ยังไม่กรอก (ใช้ชื่อในตารางสอน)')}</td>
+          <td><button class="g-btn g-btn-line g-btn-sm" type="button" data-p="${i}">พิมพ์</button></td></tr>`).join('')}
+      </tbody></table></div>` : '<p class="g-empty">ไม่มีรายการในช่วงนี้</p>'}</section></div>`;
 
   const form = $('#rp-form', el);
   $('#rp-month', el).addEventListener('change', (e) => {

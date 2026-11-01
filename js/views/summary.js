@@ -3,6 +3,7 @@ import { $, esc, toast, todayISO, thDate } from '../util.js';
 import { rankData } from '../db.js';
 import { fiscalYear, fiscalRange, fmtDays, leavesRange } from '../leaves.js';
 import { has } from '../perm.js';
+import { hero } from '../gui.js';
 
 const KEY = 'wlsub-sum';
 const monthOf = (m) => { const [y, mm] = m.split('-').map(Number); return { from: `${m}-01`, to: `${m}-${String(new Date(y, mm, 0).getDate()).padStart(2, '0')}` }; };
@@ -32,19 +33,19 @@ export async function render(el, ctx) {
   const fy = fiscalYear(todayISO()); const fr = fiscalRange(fy);
   const tot = rows.reduce((a, r) => ({ days: a.days + r.days, covered: a.covered + r.covered, gave: a.gave + r.gave }), { days: 0, covered: 0, gave: 0 });
 
-  el.innerHTML = `<h2>สรุปรายครู</h2>
-    <div class="card"><form id="sm-form" class="form-grid">
+  el.innerHTML = `<div class="wl-g">${hero('สรุปรายครู', `${esc(thDate(f.from))} – ${esc(thDate(f.to))}`)}
+    <section class="g-card"><div class="g-pad"><form id="sm-form" class="g-form">
       <label>ตั้งแต่<input type="date" name="from" value="${f.from}" required></label>
       <label>ถึง<input type="date" name="to" value="${f.to}" required></label>
-      <div class="actions" style="align-self:end"><button class="btn btn-primary" type="submit">แสดง</button>
-        <button class="btn" type="button" id="sm-month">เดือนนี้</button><button class="btn" type="button" id="sm-fy">ปีงบประมาณ ${fy}</button></div></form>
-      <p class="muted small">${esc(thDate(f.from))} – ${esc(thDate(f.to))} · "สอนแทนให้ผู้อื่น" นับจากคาบที่ยืนยันแล้ว · ${staff ? 'ใช้ดูความเป็นธรรมของการสอนแทน' : 'แสดงเฉพาะของคุณ'}</p></div>
-    <div class="card">${rows.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>ครู</th><th class="c">ลา (ครั้ง)</th><th class="c">ลา (วัน)</th>
+      <div class="g-actions"><button class="g-btn" type="submit">แสดง</button>
+        <button class="g-btn g-btn-line" type="button" id="sm-month">เดือนนี้</button><button class="g-btn g-btn-line" type="button" id="sm-fy">ปีงบประมาณ ${fy}</button></div></form>
+      <p class="g-sub">"สอนแทนให้ผู้อื่น" นับจากคาบที่ยืนยันแล้ว · ${staff ? 'ใช้ดูความเป็นธรรมของการสอนแทน' : 'แสดงเฉพาะของคุณ'}</p></div></section>
+    <section class="g-card">${rows.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>ครู</th><th class="c">ลา (ครั้ง)</th><th class="c">ลา (วัน)</th>
       <th class="c">ถูกสอนแทน (คาบ)</th><th class="c">สอนแทนให้ผู้อื่น (คาบ)</th><th class="c">สอนแทน − ถูกแทน</th></tr></thead><tbody>
-      ${rows.map((r) => { const d = r.gave - r.covered; return `<tr><td>${esc(r.name)}</td><td class="c">${r.leaves || '-'}</td><td class="c">${r.days ? fmtDays(r.days) : '-'}</td>
-        <td class="c">${r.covered || '-'}</td><td class="c">${r.gave || '-'}</td><td class="c">${d > 0 ? '+' : ''}${d}</td></tr>`; }).join('')}
+      ${rows.map((r) => { const d = r.gave - r.covered; return `<tr><td class="nowrap"><b>${esc(r.name)}</b></td><td class="c num">${r.leaves || '-'}</td><td class="c num">${r.days ? fmtDays(r.days) : '-'}</td>
+        <td class="c num">${r.covered || '-'}</td><td class="c num">${r.gave || '-'}</td><td class="c num">${d > 0 ? '+' : ''}${d}</td></tr>`; }).join('')}
       </tbody>${staff ? `<tfoot><tr><th>รวม</th><th></th><th class="c">${fmtDays(tot.days)}</th><th class="c">${tot.covered}</th><th class="c">${tot.gave}</th><th></th></tr></tfoot>` : ''}</table></div>`
-      : '<p class="muted">ไม่มีข้อมูลในช่วงนี้</p>'}</div>`;
+      : '<p class="g-empty">ไม่มีข้อมูลในช่วงนี้</p>'}</section></div>`;
   const go = (v) => { sessionStorage.setItem(KEY, JSON.stringify(v)); render(el, ctx); };
   $('#sm-form', el).addEventListener('submit', (e) => {
     e.preventDefault(); const v = Object.fromEntries(new FormData(e.target).entries());
