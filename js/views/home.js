@@ -32,6 +32,9 @@ export async function render(el, ctx) {
   if (hr || dir || ac) stats.push([todayAbsent.length, 'ครูลาวันนี้', 'leaves']);
   if (ac) { stats.push([pendingReq.length, 'คิวรอจัดสอนแทน', 'requests']); stats.push([todayRecs.length, 'คาบสอนแทนวันนี้', 'records']); }
   if (me.teacher) { stats.push([myReq.length, 'คำขอของฉันที่ยังจัดไม่ครบ', 'mine']); stats.push([mineUp, 'คาบที่ฉันต้องสอนแทน', 'mysubs']); }
+  const ackOn = recs.some((r) => 'k' in r);
+  if (ackOn && ac) stats.push([recs.filter((r) => r.s && r.d >= today && !r.k).length, 'คาบสอนแทนที่ครูยังไม่รับทราบ', 'records']);
+  if (ackOn && me.teacher) { const w = recs.filter((r) => r.s === me.teacher && r.d >= today && !r.k).length; if (w) stats.push([w, 'คาบที่ฉันยังไม่ได้รับทราบ', 'mysubs']); }
 
   const cta = ac ? ['assist', 'ช่วยจัดครูสอนแทน'] : (hr || dir) ? ['approvals', 'ตรวจ/อนุญาตใบลา'] : me.teacher ? ['request', 'ยื่นใบลา'] : null;
   const clock = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.6"/></svg>';
