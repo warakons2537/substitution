@@ -37,7 +37,7 @@ export async function render(el, ctx) {
   const clock = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.6"/></svg>';
   const alertI = '<svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.4M8 11h.01"/></svg>';
   el.innerHTML = `<div class="wl-g">
-    <header class="g-hero"><div class="g-hero-text"><div class="g-eyebrow">WL ระบบสอนแทน</div>
+    <header class="g-hero"><div class="g-logo"><span class="g-mark" aria-hidden="true">WL</span><span class="g-brand">WL ระบบสอนแทน</span></div><div class="g-hero-text">
       <h1>สวัสดี ${esc(name)}</h1><p>${esc(thDay(today))} ${esc(thDate(today, { day: 'numeric', month: 'long', year: 'numeric' }))} · ${esc(dutyText(me))}</p></div>
       ${cta ? `<a class="g-btn" href="#${cta[0]}">${cta[1]}</a>` : ''}</header>
     ${urgent.length ? `<div class="g-note" role="status">${alertI}<span>มี ${urgent.length} คิวสอนแทนที่ต้องจัดภายในวันนี้-พรุ่งนี้ · <a href="#requests">ไปจัดเลย</a></span></div>` : ''}

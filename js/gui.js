@@ -9,5 +9,5 @@ export const ICON = {
 };
 // ป้ายสถานะ: สีคงที่ + ไอคอนเสมอ (st = pending|approved|rejected|cancelled)
 export const pill = (st, label, title = '') => `<span class="g-pill g-${st}"${title ? ` title="${esc(title)}"` : ''}>${ICON[st] || ''}<span>${esc(label)}</span></span>`;
-export const hero = (title, sub, action = '') => `<header class="g-hero"><div class="g-hero-text"><div class="g-eyebrow">WL ระบบสอนแทน</div>
+export const hero = (title, sub, action = '') => `<header class="g-hero"><div class="g-logo"><span class="g-mark" aria-hidden="true">WL</span><span class="g-brand">WL ระบบสอนแทน</span></div><div class="g-hero-text">
   <h1>${esc(title)}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${action}</header>`;
