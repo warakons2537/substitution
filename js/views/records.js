@@ -3,7 +3,7 @@ import { $, $$, esc, opts, toast, todayISO, thDate, thDay, dowIndex , confirmBox
 import { sb, q } from '../db.js';
 import { LEAVE_TYPES } from '../config.js';
 import { realTeachers, gradeLabel } from '../timetable.js';
-import { hero, bulkBar } from '../gui.js';
+import { hero, bulkBar, pill } from '../gui.js';
 
 const SRC = { assist: 'ช่วยจัด', manual: 'บันทึกเอง', request: 'คำขอ' };
 
@@ -18,6 +18,7 @@ export async function render(el, ctx) {
   const list = await q(sb.from('sub_records').select('*').eq('status', 'confirmed')
     .gte('sub_date', `${month}-01`).lt('sub_date', next).order('sub_date').order('period'));
 
+  const hasAck = list.length > 0 && 'ack_at' in list[0];   // ฐานข้อมูลรอบ 5 ติดตั้งแล้ว
   el.innerHTML = `<div class="wl-g">${hero('บันทึกการสอนแทน', 'บันทึกด้วยมือและรายการที่บันทึกแล้ว')}
     <section class="g-card"><div class="g-card-h"><h3 id="m-title">บันทึกด้วยมือ</h3></div><form id="m-form" class="g-form">
       <input type="hidden" name="id">
@@ -35,10 +36,11 @@ export async function render(el, ctx) {
     </form></section>
     <section class="g-card"><div class="g-card-h"><h3>รายการเดือน</h3>
       <input class="g-input" type="month" id="m-month" value="${month}" aria-label="เดือน"></div>
-      ${list.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr>${admin ? '<th><input class="g-chk" type="checkbox" id="m-all" aria-label="เลือกทั้งหมด"></th>' : ''}<th>วันที่</th><th>คาบ</th><th>ครูที่ลา</th><th>ประเภท</th><th>ชั้น</th><th>วิชา</th><th>ครูสอนแทน</th><th>ที่มา</th><th></th></tr></thead><tbody>
+      ${list.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr>${admin ? '<th><input class="g-chk" type="checkbox" id="m-all" aria-label="เลือกทั้งหมด"></th>' : ''}<th>วันที่</th><th>คาบ</th><th>ครูที่ลา</th><th>ประเภท</th><th>ชั้น</th><th>วิชา</th><th>ครูสอนแทน</th>${hasAck ? '<th>รับทราบ</th>' : ''}<th>ที่มา</th><th></th></tr></thead><tbody>
         ${list.map((r) => `<tr>${admin ? `<td><input class="g-chk m-pick" type="checkbox" value="${r.id}" aria-label="เลือกรายการ"></td>` : ''}<td>${esc(thDay(r.sub_date))} ${esc(thDate(r.sub_date))}</td><td class="c">${r.period}</td>
           <td>${esc(r.absent_teacher)}</td><td>${esc(r.leave_type)}</td><td>${esc(r.grade)}</td><td>${esc(r.subject)}</td>
           <td>${r.substitute_teacher ? esc(r.substitute_teacher) : '<span class="g-sub">ไม่ต้องสอนแทน</span>'}</td>
+          ${hasAck ? `<td>${r.substitute_teacher ? (r.ack_at ? pill('approved', 'รับทราบแล้ว') : pill('pending', 'รอรับทราบ')) : ''}</td>` : ''}
           <td class="g-sub">${SRC[r.source] || ''}</td>
           <td class="nowrap"><button class="g-btn g-btn-line g-btn-sm" type="button" data-edit="${r.id}">แก้ไข</button>
             ${admin ? `<button class="g-btn g-btn-line g-btn-sm g-danger" type="button" data-del="${r.id}">ลบ</button>` : ''}</td></tr>`).join('')}

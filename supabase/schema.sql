@@ -727,3 +727,50 @@ language sql stable security definer set search_path = public as $$
   where (public.sub_is_staff() or public.sub_is_hr() or public.sub_is_director()) and teacher_name <> ''
 $$;
 grant execute on function public.sub_teacher_profiles() to authenticated;
+
+-- =====================================================================
+--  รอบ 5: ครูสอนแทนกด "รับทราบ" คาบที่ได้รับมอบหมาย (รันซ้ำได้)
+-- =====================================================================
+alter table public.sub_records add column if not exists ack_at timestamptz;
+
+-- ack_at เปลี่ยนได้เฉพาะผ่านฟังก์ชัน sub_ack (ตั้งค่า sub.ack ชั่วคราว) · เปลี่ยนตัวครูสอนแทน = ต้องรับทราบใหม่
+create or replace function public.sub_records_ack_guard() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'INSERT' then new.ack_at := null; return new; end if;
+  if new.substitute_teacher is distinct from old.substitute_teacher or new.status is distinct from old.status then
+    new.ack_at := null;
+  elsif new.ack_at is distinct from old.ack_at and coalesce(current_setting('sub.ack', true), '') <> 'on' then
+    new.ack_at := old.ack_at;
+  end if;
+  return new;
+end $$;
+drop trigger if exists sub_records_ack_guard on public.sub_records;
+create trigger sub_records_ack_guard before insert or update on public.sub_records for each row execute function public.sub_records_ack_guard();
+
+-- ครูกดรับทราบ (เฉพาะคาบของตัวเอง) — คืนจำนวนที่บันทึก
+create or replace function public.sub_ack(p_ids uuid[]) returns int
+language plpgsql security definer set search_path = public as $$
+declare me text := public.sub_my_teacher(); n int;
+begin
+  if me = '' then raise exception 'บัญชีนี้ยังไม่ผูกกับชื่อครู'; end if;
+  perform set_config('sub.ack', 'on', true);
+  update public.sub_records set ack_at = now()
+   where id = any(p_ids) and substitute_teacher = me and status = 'confirmed' and ack_at is null;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+grant execute on function public.sub_ack(uuid[]) to authenticated;
+
+-- ข้อมูลจัดอันดับ: เพิ่ม id ('i') และเวลารับทราบ ('k') ให้ครูเห็นของตัวเองและฝ่ายวิชาการตามดูได้
+create or replace function public.sub_rank_data() returns jsonb
+language sql stable security definer set search_path = public as $$
+  select case when not public.sub_is_member() then null else jsonb_build_object(
+    'records', coalesce((select jsonb_agg(jsonb_build_object(
+        'i', id, 'd', sub_date, 'p', period, 'a', absent_teacher, 's', substitute_teacher, 'st', status, 'r', request_id, 'k', ack_at))
+      from public.sub_records), '[]'::jsonb),
+    'requests', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', id, 't', teacher_name, 'from', date_from, 'to', date_to, 'periods', periods))
+      from public.sub_requests where status in ('pending','approved')), '[]'::jsonb)
+  ) end
+$$;
