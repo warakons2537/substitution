@@ -451,3 +451,12 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 /* ตารางท้าย (รวม) และข้อความช่วย */
 .wl-g .g-tbl tfoot th { background: var(--g-hover); color: var(--g-fg); font-weight: 700; border-top: 2px solid var(--g-border); }
 .wl-g .g-pad > .g-sub { margin: 0; }
+
+/* ตัวช่วยอ่านไฟล์ใบลา: ย่อไว้ท้ายฟอร์ม ไม่สะดุดตา กดจึงเปิด */
+.wl-g .g-fread { margin-top: 4px; padding-top: 12px; border-top: 1px dashed var(--g-border); }
+.wl-g .g-fread summary { display: inline-block; cursor: pointer; font-size: 15px; color: var(--g-muted); padding: 6px 0; list-style: none; text-decoration: underline; text-underline-offset: 3px; }
+.wl-g .g-fread summary::-webkit-details-marker { display: none; }
+.wl-g .g-fread summary:hover { color: var(--g-fg); }
+.wl-g .g-fread summary:focus-visible { outline: 3px solid var(--g-gold); outline-offset: 2px; border-radius: 6px; }
+.wl-g .g-fread[open] summary { text-decoration: none; font-weight: 500; }
+.wl-g .g-fread[open] > * + * { margin-top: 10px; }
