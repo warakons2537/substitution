@@ -4,6 +4,7 @@ import { sb, q, rankData, REQ_COLS } from '../db.js';
 import { printRequest } from '../print.js';
 import { mountLeaveForm } from '../leaveform.js';
 import { buildItems, mountPlanner, NONE, noteOf } from '../planner.js';
+import { pill, hero } from '../gui.js';
 
 export const STATUS = { pending: 'รอพิจารณา', approved: 'อนุมัติแล้ว', rejected: 'ไม่อนุมัติ', cancelled: 'ยกเลิกแล้ว' };
 export const periodText = (r) => (r.periods?.length ? `คาบ ${r.periods.join(', ')}` : 'ทั้งวัน');
@@ -11,10 +12,10 @@ export const dateText = (r) => (r.date_from === r.date_to ? thDate(r.date_from) 
 
 export async function render(el, { tt, me }) {
   if (!me.teacher) {
-    el.innerHTML = '<h2>แจ้งขอลา/ขอสอนแทน</h2><div class="card"><p>บัญชีนี้ยังไม่ได้ผูกกับชื่อครู กรุณาแจ้งผู้ดูแลระบบ</p></div>';
+    el.innerHTML = `<div class="wl-g">${hero('แจ้งขอลา/ขอสอนแทน', '')}<section class="g-card"><p class="g-empty">บัญชีนี้ยังไม่ได้ผูกกับชื่อครู กรุณาแจ้งผู้ดูแลระบบ</p></section></div>`;
     return;
   }
-  el.innerHTML = `<h2>แจ้งขอลา/ขอสอนแทน</h2>
+  el.innerHTML = `<div class="wl-g">${hero('แจ้งขอลา/ขอสอนแทน', 'เลือกวันลาและคาบ ระบบเลือกครูสอนแทนให้ เปลี่ยนได้ก่อนส่ง')}</div>
     <div class="card"><div id="r-form"></div></div>
     <div class="card"><label>ระหว่างลาติดต่อได้ที่<input id="r-contact" maxlength="200" value="${esc(me.phone ? `หมายเลขโทรศัพท์ ${me.phone}` : '')}"></label></div>
     <div class="card"><p class="muted small">ระบบเลือกครูสอนแทนให้ เปลี่ยนได้ตามต้องการ — ที่เลือกไว้มีผลทันทีเมื่อส่ง · คาบที่เลือก "ให้ฝ่ายวิชาการจัด" ฝ่ายวิชาการจะจัดให้ภายหลัง</p>
@@ -62,13 +63,14 @@ export async function render(el, { tt, me }) {
 
 export async function renderMine(el, { me }) {
   const list = await q(sb.from('sub_requests').select(REQ_COLS).eq('requested_by', me.id).order('date_from', { ascending: false }).limit(100));
-  el.innerHTML = `<h2>คำขอของฉัน</h2><div class="card">${list.length ? `<div class="table-wrap"><table class="tbl">
+  el.innerHTML = `<div class="wl-g">${hero('คำขอของฉัน', 'ประวัติคำขอลา/ขอสอนแทน (ล่าสุด 100 รายการ)')}
+    <section class="g-card">${list.length ? `<div class="g-scroll"><table class="g-tbl">
     <thead><tr><th>วันที่ลา</th><th>คาบ</th><th>ประเภท</th><th>สถานะ</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>
-    ${list.map((r) => `<tr><td>${esc(dateText(r))}</td><td>${esc(periodText(r))}</td><td>${esc(r.leave_type)}</td>
-      <td><span class="badge ${r.status}">${STATUS[r.status]}</span></td><td>${esc(r.decision_note)}</td>
-      <td class="nowrap">${['pending', 'approved'].includes(r.status) ? `<button class="btn btn-sm" data-print="${r.id}">พิมพ์</button>
-        <button class="btn btn-sm" data-cancel="${r.id}">ยกเลิก</button>` : ''}</td></tr>`).join('')}
-    </tbody></table></div>` : '<p class="muted">ยังไม่มีคำขอ</p>'}</div>`;
+    ${list.map((r) => `<tr><td class="nowrap">${esc(dateText(r))}</td><td>${esc(periodText(r))}</td><td>${esc(r.leave_type)}</td>
+      <td>${pill(r.status, STATUS[r.status])}</td><td>${esc(r.decision_note)}</td>
+      <td class="nowrap">${['pending', 'approved'].includes(r.status) ? `<button class="g-btn g-btn-line g-btn-sm" type="button" data-print="${r.id}">พิมพ์</button>
+        <button class="g-btn g-btn-line g-btn-sm g-danger" type="button" data-cancel="${r.id}">ยกเลิก</button>` : ''}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="g-empty">ยังไม่มีคำขอ</p>'}</section></div>`;
   $$('[data-cancel]', el).forEach((b) => b.addEventListener('click', async () => {
     if (!(await confirmBox('ยกเลิกคำขอนี้?')) ) return;
     try {
