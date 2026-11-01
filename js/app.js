@@ -1,3 +1,4 @@
+import { fitHeroTitles } from './gui.js';
 import { $, $$, esc, toast } from './util.js';
 import { BRAND, VERSION } from './config.js';
 import { auth, loadMe, activeTimetable } from './db.js';
@@ -143,9 +144,11 @@ async function route() {
   }
   view.innerHTML = '<div class="loading" role="status"><i class="bar"></i><span>กำลังโหลด…</span></div>';
   try { await VIEWS[item[0]](view, ctx); } catch (e) { console.error(e); view.innerHTML = `<div class="card"><p class="warn">${esc(e.message)}</p></div>`; }
+  fitHeroTitles(view);
   window.scrollTo(0, 0); $('.main')?.scrollTo(0, 0);   // มือถือ: .main เป็นตัวเลื่อน
 }
 
+window.addEventListener('resize', () => fitHeroTitles());
 async function boot() {
   ctx = null;
   bell?.destroy(); bell = null;
