@@ -32,42 +32,52 @@ export async function render(el, ctx) {
   let summary;
   if (teacherF || !staff) {
     const u = sumOne(teacherF);
-    summary = `<div class="table-wrap"><table class="tbl"><thead><tr><th>ประเภท</th><th class="c">ครั้ง</th><th class="c">วันที่ลา</th><th class="c">โควตา</th><th class="c">คงเหลือ</th></tr></thead><tbody>
+    summary = `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>ประเภท</th><th class="c">ครั้ง</th><th class="c">วันที่ลา</th><th class="c">โควตา</th><th class="c">คงเหลือ</th></tr></thead><tbody>
       ${types.map((t) => { const x = u[t.leave_type] || { used: 0, count: 0 }; const left = t.quota_days == null ? null : t.quota_days - x.used;
         return `<tr><td>${esc(t.leave_type)}</td><td class="c">${x.count}</td><td class="c">${fmtDays(x.used)}</td>
           <td class="c">${t.quota_days == null ? '<span class="muted">ไม่จำกัด</span>' : fmtDays(t.quota_days)}</td>
-          <td class="c">${left == null ? '' : `<span class="${left < 0 ? 'warn' : ''}">${fmtDays(left)}</span>`}</td></tr>`; }).join('')}
+          <td class="c">${left == null ? '' : `<span class="${left < 0 ? 'g-over' : ''}">${fmtDays(left)}</span>`}</td></tr>`; }).join('')}
       </tbody></table></div>`;
   } else {
     const who = [...new Set(all.map((l) => l.teacher_name))].sort((a, b) => a.localeCompare(b, 'th'));
     const used = types.filter((t) => all.some((l) => l.leave_type === t.leave_type));
-    summary = who.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>ครู</th>${used.map((t) => `<th class="c">${esc(t.leave_type)}</th>`).join('')}<th class="c">รวม (วัน)</th></tr></thead><tbody>
+    summary = who.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>ครู</th>${used.map((t) => `<th class="c">${esc(t.leave_type)}</th>`).join('')}<th class="c">รวม (วัน)</th></tr></thead><tbody>
       ${who.map((n) => { const u = sumOne(n); let tot = 0;
         return `<tr><td>${esc(n)}</td>${used.map((t) => { const x = u[t.leave_type]; tot += x?.used || 0;
           const over = x && t.quota_days != null && x.used > t.quota_days;
-          return `<td class="c ${over ? 'warn' : ''}">${x ? fmtDays(x.used) : '<span class="muted">-</span>'}</td>`; }).join('')}<td class="c"><b>${fmtDays(tot)}</b></td></tr>`; }).join('')}
-      </tbody></table></div>` : '<p class="muted">ยังไม่มีข้อมูลการลาในปีงบประมาณนี้</p>';
+          return `<td class="c ${over ? 'g-over' : ''}">${x ? fmtDays(x.used) : '<span class="muted">-</span>'}</td>`; }).join('')}<td class="c"><b>${fmtDays(tot)}</b></td></tr>`; }).join('')}
+      </tbody></table></div>` : '<p class="g-empty">ยังไม่มีข้อมูลการลาในปีงบประมาณนี้</p>';
   }
 
-  el.innerHTML = `<h2>ทะเบียนการลา</h2>
-    <div class="card"><div class="row-between"><div class="form-grid" style="flex:1">
+  const ICON = {
+    pending: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.6"/></svg>',
+    approved: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>',
+    rejected: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+    cancelled: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 8h9"/></svg>' };
+  const pill = (st) => `<span class="g-pill g-${st}">${ICON[st] || ''}<span>${LEAVE_STATUS[st]}</span></span>`;
+  const chips = [['', 'ทั้งหมด', all.length], ...types.map((t) => [t.leave_type, t.leave_type, all.filter((l) => l.leave_type === t.leave_type).length])];
+  el.innerHTML = `<div class="wl-g">
+    <header class="g-hero"><div class="g-hero-text"><div class="g-eyebrow">WL ระบบสอนแทน · ระบบลา</div>
+      <h1>ทะเบียนการลา</h1><p>ปีงบประมาณ ${fy} · ${esc(thDate(from))} – ${esc(thDate(to))}</p></div>
+      ${hr || me.teacher ? '<button class="g-btn" id="lv-add" type="button">+ บันทึกการลา</button>' : ''}</header>
+    <div class="g-filters">
       <label>ปีงบประมาณ (พ.ศ.)<select id="lv-fy">${opts(years, fy)}</select></label>
-      ${staff ? `<label>ครู<select id="lv-t"><option value="">ทั้งหมด</option>${opts(names, teacherF)}</select></label>` : ''}
-      <label>ประเภท<select id="lv-ty"><option value="">ทั้งหมด</option>${opts(types.map((t) => t.leave_type), typeF)}</select></label></div>
-      ${hr || me.teacher ? '<button class="btn btn-primary" id="lv-add">+ บันทึกการลา</button>' : ''}</div>
-      <p class="muted small">ปีงบประมาณ ${fy}: ${esc(thDate(from))} – ${esc(thDate(to))} · นับวันทำการ จันทร์–ศุกร์ ไม่รวมวันหยุดที่ตั้งไว้ · ยอดรวมการลาที่ "รอตรวจ" และ "บันทึกแล้ว"</p></div>
-    <div class="card"><h3>${teacherF || !staff ? `สรุปการลา${teacherF ? ` · ${esc(teacherF)}` : ''}` : 'สรุปการลารายครู (วัน)'}</h3>${summary}</div>
-    <div class="card"><h3>รายการ (${rows.length})</h3>${rows.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>วันที่</th>${staff ? '<th>ครู</th>' : ''}<th>ประเภท</th><th class="c">วัน</th><th>เหตุผล</th><th>สถานะ</th><th></th></tr></thead><tbody>
+      ${staff ? `<label>ครู<select id="lv-t"><option value="">ทั้งหมด</option>${opts(names, teacherF)}</select></label>` : ''}</div>
+    <div class="g-chips" role="group" aria-label="กรองตามประเภทการลา">${chips.map(([v, t, n]) => `<button type="button" class="g-chip" data-ty="${esc(v)}" aria-pressed="${v === typeF}"><span>${esc(t)}</span><b class="num">${n}</b></button>`).join('')}</div>
+    <p class="g-sub">นับวันทำการ จันทร์–ศุกร์ ไม่รวมวันหยุดที่ตั้งไว้ · ยอดรวมการลาที่ "รอตรวจ" และ "บันทึกแล้ว"</p>
+    <section class="g-card"><div class="g-card-h"><h3>${teacherF || !staff ? `สรุปการลา${teacherF ? ` · ${esc(teacherF)}` : ''}` : 'สรุปการลารายครู (วัน)'}</h3></div>${summary}</section>
+    <section class="g-card"><div class="g-card-h"><h3>รายการ (${rows.length})</h3></div>${rows.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>วันที่</th>${staff ? '<th>ครู</th>' : ''}<th>ประเภท</th><th class="c">วัน</th><th>เหตุผล</th><th>สถานะ</th><th></th></tr></thead><tbody>
       ${rows.map((l) => { const canDel = admin || (!staff && l.status === 'pending' && !l.request_id); const canEdit = hr || (!l.request_id && ['pending', 'approved'].includes(l.status) && l.teacher_name === me.teacher);
-        return `<tr><td class="nowrap">${esc(l.date_from === l.date_to ? thDate(l.date_from) : `${thDate(l.date_from)} – ${thDate(l.date_to)}`)}${l.half ? ` <span class="small muted">(${l.half === 'am' ? 'เช้า' : 'บ่าย'})</span>` : ''}</td>
-          ${staff ? `<td>${esc(l.teacher_name)}</td>` : ''}<td>${esc(l.leave_type)}${l.has_cert ? ' <span class="chip chip-ok" title="มีใบรับรองแพทย์">ใบรับรองแพทย์</span>' : ''}</td>
-          <td class="c">${fmtDays(l.days)}</td><td>${esc(l.reason)}${l.request_id ? ' <span class="chip chip-info">จากคำขอ</span>' : ''}</td>
-          <td><span class="badge ${l.status}">${LEAVE_STATUS[l.status]}</span>${staff && l.signed_at ? ' <span class="chip chip-ok" title="เซ็นเอกสารแล้ว">เซ็นแล้ว</span>' : ''}</td>
-          <td class="nowrap">${canEdit ? `<button class="btn btn-sm" data-edit="${l.id}">แก้ไข</button> ` : ''}${canDel ? `<button class="btn btn-sm btn-danger" data-del="${l.id}">ลบ</button>` : ''}</td></tr>`; }).join('')}
-      </tbody></table></div>` : '<p class="muted">ไม่มีรายการ</p>'}</div>`;
+        return `<tr><td class="nowrap">${esc(l.date_from === l.date_to ? thDate(l.date_from) : `${thDate(l.date_from)} – ${thDate(l.date_to)}`)}${l.half ? ` <span class="g-sub">(${l.half === 'am' ? 'เช้า' : 'บ่าย'})</span>` : ''}</td>
+          ${staff ? `<td>${esc(l.teacher_name)}</td>` : ''}<td>${esc(l.leave_type)}${l.has_cert ? ' <span class="g-pill g-approved" title="มีใบรับรองแพทย์">' + ICON.approved + '<span>ใบรับรองแพทย์</span></span>' : ''}</td>
+          <td class="c num">${fmtDays(l.days)}</td><td>${esc(l.reason)}${l.request_id ? ' <span class="g-tag">จากคำขอ</span>' : ''}</td>
+          <td>${pill(l.status)}${staff && l.signed_at ? ' <span class="g-pill g-approved" title="เซ็นเอกสารแล้ว">' + ICON.approved + '<span>เซ็นแล้ว</span></span>' : ''}</td>
+          <td class="nowrap">${canEdit ? `<button class="g-btn g-btn-line g-btn-sm" type="button" data-edit="${l.id}">แก้ไข</button> ` : ''}${canDel ? `<button class="g-btn g-btn-line g-btn-sm g-danger" type="button" data-del="${l.id}">ลบ</button>` : ''}</td></tr>`; }).join('')}
+      </tbody></table></div>` : '<p class="g-empty">ไม่มีรายการ</p>'}</section></div>`;
 
-  const keep = () => sessionStorage.setItem(NAME_KEY, JSON.stringify({ fy: +$('#lv-fy', el).value, teacher: $('#lv-t', el)?.value || '', type: $('#lv-ty', el).value }));
-  ['#lv-fy', '#lv-t', '#lv-ty'].forEach((s) => $(s, el)?.addEventListener('change', () => { keep(); render(el, ctx); }));
+  const keep = () => sessionStorage.setItem(NAME_KEY, JSON.stringify({ fy: +$('#lv-fy', el).value, teacher: $('#lv-t', el)?.value || '', type: $('.g-chip[aria-pressed="true"]', el)?.dataset.ty || '' }));
+  ['#lv-fy', '#lv-t'].forEach((s) => $(s, el)?.addEventListener('change', () => { keep(); render(el, ctx); }));
+  $$('.g-chip', el).forEach((b) => b.addEventListener('click', () => { $$('.g-chip', el).forEach((x) => x.setAttribute('aria-pressed', x === b)); keep(); render(el, ctx); }));
   $('#lv-add', el)?.addEventListener('click', () => edit(null));
   $$('[data-edit]', el).forEach((b) => b.addEventListener('click', () => edit(all.find((l) => l.id === b.dataset.edit))));
   $$('[data-del]', el).forEach((b) => b.addEventListener('click', async () => {
