@@ -1,7 +1,7 @@
 // node tests/leaves.test.mjs — ทดสอบตรรกะนับวันลา/ปีงบประมาณ/ยอดใช้ไป/สรุปรายครู/สถิติรายงาน (ไม่ต้องติดตั้งอะไร)
 import assert from 'node:assert/strict';
 globalThis.window = { supabase: { createClient: () => ({}) } };
-const { fiscalYear, fiscalRange, countDays, usage, fmtDays } = await import('../js/leaves.js');
+const { fiscalYear, fiscalRange, countDays, usage, fmtDays, evalRounds, roundUsage, roundNo } = await import('../js/leaves.js');
 const { summarize } = await import('../js/views/summary.js');
 const { stats } = await import('../js/report.js');
 
@@ -51,4 +51,18 @@ t('รายงาน: คอลัมน์ประเภทการลาเ
   const st = stats([{ sub_date: '2026-11-02', period: 1, absent_teacher: 'ก', leave_type: 'ลาป่วย', substitute_teacher: 'ข', subject: 'ค', grade: 'ป.1' }]);
   assert.deepEqual(st.types, ['ลาป่วย']);
 });
+t('รอบการประเมิน: รอบ 1 = ต.ค.–มี.ค. · รอบ 2 = เม.ย.–ก.ย.', () => {
+  assert.deepEqual(evalRounds(2570).map((r) => [r.from, r.to]), [['2026-10-01', '2027-03-31'], ['2027-04-01', '2027-09-30']]);
+  assert.equal(roundNo('2026-10-01'), 1); assert.equal(roundNo('2027-03-31'), 1); assert.equal(roundNo('2027-04-01'), 2); assert.equal(roundNo('2027-09-30'), 2);
+});
+t('ยอดรอบประเมิน: นับเฉพาะป่วย+กิจ ของครูคนนั้น ที่ pending/approved; ระดับ ok/near/over', () => {
+  const L = (name, type, d, days, status = 'approved') => ({ teacher_name: name, leave_type: type, date_from: d, days, status });
+  const leaves = [L('ก', 'ลาป่วย', '2026-11-02', 10), L('ก', 'ลากิจ', '2026-12-01', 9), L('ก', 'ลาพักผ่อน', '2026-12-10', 5), L('ก', 'ลากิจ', '2026-12-15', 4, 'rejected'),
+    L('ข', 'ลาป่วย', '2026-11-03', 20), L('ก', 'ลาป่วย', '2027-04-05', 2)];
+  const r = roundUsage(leaves, 'ก', 2570);
+  assert.equal(r[0].used, 19); assert.equal(r[0].level, 'near');   // 19/23 = 0.83
+  assert.equal(r[1].used, 2); assert.equal(r[1].level, 'ok');
+  assert.equal(roundUsage([L('ก', 'ลาป่วย', '2026-11-02', 24)], 'ก', 2570)[0].level, 'over');
+});
+
 console.log(`\nผ่านทั้งหมด ${n} รายการ`);
