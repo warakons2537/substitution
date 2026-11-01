@@ -3,6 +3,7 @@ import { $, $$, esc, opts, toast, todayISO, thDate, thDay, dowIndex , confirmBox
 import { sb, q } from '../db.js';
 import { LEAVE_TYPES } from '../config.js';
 import { realTeachers, gradeLabel } from '../timetable.js';
+import { hero } from '../gui.js';
 
 const SRC = { assist: 'ช่วยจัด', manual: 'บันทึกเอง', request: 'คำขอ' };
 
@@ -17,8 +18,8 @@ export async function render(el, ctx) {
   const list = await q(sb.from('sub_records').select('*').eq('status', 'confirmed')
     .gte('sub_date', `${month}-01`).lt('sub_date', next).order('sub_date').order('period'));
 
-  el.innerHTML = `<h2>บันทึกการสอนแทน</h2>
-    <div class="card"><h3 id="m-title">บันทึกด้วยมือ</h3><form id="m-form" class="form-grid">
+  el.innerHTML = `<div class="wl-g">${hero('บันทึกการสอนแทน', 'บันทึกด้วยมือและรายการที่บันทึกแล้ว')}
+    <section class="g-card"><div class="g-card-h"><h3 id="m-title">บันทึกด้วยมือ</h3></div><form id="m-form" class="g-form">
       <input type="hidden" name="id">
       <label>วันที่<input type="date" name="sub_date" value="${todayISO()}" required></label>
       <label>คาบ<select name="period">${opts(per)}</select></label>
@@ -29,20 +30,20 @@ export async function render(el, ctx) {
       <label>ครูสอนแทน<select name="substitute_teacher"><option value="">ไม่ต้องสอนแทน</option>${opts(teachers)}</select></label>
       <label>หมายเหตุ<input name="note" maxlength="200"></label>
       <datalist id="m-grades">${opts(tt.data.grades)}</datalist>
-      <div class="actions span-all"><button type="button" class="btn" id="m-clear">ล้างฟอร์ม</button>
-        <button class="btn btn-primary" type="submit">บันทึก</button></div>
-    </form></div>
-    <div class="card"><div class="row-between"><h3>รายการเดือน</h3>
-      <input type="month" id="m-month" value="${month}"></div>
-      ${list.length ? `<div class="table-wrap"><table class="tbl"><thead><tr>${admin ? '<th><input type="checkbox" id="m-all" title="เลือกทั้งหมด"></th>' : ''}<th>วันที่</th><th>คาบ</th><th>ครูที่ลา</th><th>ประเภท</th><th>ชั้น</th><th>วิชา</th><th>ครูสอนแทน</th><th>ที่มา</th><th></th></tr></thead><tbody>
-        ${list.map((r) => `<tr>${admin ? `<td><input type="checkbox" class="m-pick" value="${r.id}"></td>` : ''}<td>${esc(thDay(r.sub_date))} ${esc(thDate(r.sub_date))}</td><td class="c">${r.period}</td>
+      <div class="g-actions"><button type="button" class="g-btn g-btn-line" id="m-clear">ล้างฟอร์ม</button>
+        <button class="g-btn" type="submit">บันทึก</button></div>
+    </form></section>
+    <section class="g-card"><div class="g-card-h"><h3>รายการเดือน</h3>
+      <input class="g-input" type="month" id="m-month" value="${month}" aria-label="เดือน"></div>
+      ${list.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr>${admin ? '<th><input class="g-chk" type="checkbox" id="m-all" aria-label="เลือกทั้งหมด"></th>' : ''}<th>วันที่</th><th>คาบ</th><th>ครูที่ลา</th><th>ประเภท</th><th>ชั้น</th><th>วิชา</th><th>ครูสอนแทน</th><th>ที่มา</th><th></th></tr></thead><tbody>
+        ${list.map((r) => `<tr>${admin ? `<td><input class="g-chk m-pick" type="checkbox" value="${r.id}" aria-label="เลือกรายการ"></td>` : ''}<td>${esc(thDay(r.sub_date))} ${esc(thDate(r.sub_date))}</td><td class="c">${r.period}</td>
           <td>${esc(r.absent_teacher)}</td><td>${esc(r.leave_type)}</td><td>${esc(r.grade)}</td><td>${esc(r.subject)}</td>
-          <td>${r.substitute_teacher ? esc(r.substitute_teacher) : '<span class="muted">ไม่ต้องสอนแทน</span>'}</td>
-          <td class="small">${SRC[r.source] || ''}</td>
-          <td class="nowrap"><button class="btn btn-sm" data-edit="${r.id}">แก้ไข</button>
-            ${admin ? `<button class="btn btn-sm btn-danger" data-del="${r.id}">ลบ</button>` : ''}</td></tr>`).join('')}
-      </tbody></table></div><div class="row-between"><p class="muted small">รวม ${list.length} คาบ</p>
-      ${admin ? '<button class="btn btn-sm btn-danger" id="m-del-sel" disabled>ลบรายการที่เลือก</button>' : ''}</div>` : '<p class="muted">ยังไม่มีรายการในเดือนนี้</p>'}</div>`;
+          <td>${r.substitute_teacher ? esc(r.substitute_teacher) : '<span class="g-sub">ไม่ต้องสอนแทน</span>'}</td>
+          <td class="g-sub">${SRC[r.source] || ''}</td>
+          <td class="nowrap"><button class="g-btn g-btn-line g-btn-sm" type="button" data-edit="${r.id}">แก้ไข</button>
+            ${admin ? `<button class="g-btn g-btn-line g-btn-sm g-danger" type="button" data-del="${r.id}">ลบ</button>` : ''}</td></tr>`).join('')}
+      </tbody></table></div><div class="g-card-h g-foot"><span class="g-sub">รวม ${list.length} คาบ</span>
+      ${admin ? '<button class="g-btn g-btn-line g-btn-sm g-danger" type="button" id="m-del-sel" disabled>ลบรายการที่เลือก</button>' : ''}</div>` : '<p class="g-empty">ยังไม่มีรายการในเดือนนี้</p>'}</section></div>`;
 
   const f = $('#m-form', el);
   const set = (n, v) => { f.elements[n].value = v ?? ''; };

@@ -374,3 +374,16 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .wl-g .g-btn-sm { min-height: 40px; padding: 0 16px; font-size: 15px; }
 .wl-g .g-danger { color: var(--g-bad-fg); }
 @media (prefers-reduced-motion: reduce) { .wl-g .g-chip { transition: none; } .wl-g .g-chip:active { transform: none; } }
+
+/* ฟอร์มและช่องกรอก (.wl-g) */
+.wl-g .g-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px 16px; padding: 18px 20px 20px; }
+.wl-g .g-form label { display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 500; color: var(--g-muted); min-width: 0; }
+.wl-g .g-form input, .wl-g .g-form select, .wl-g .g-input { min-height: 48px; padding: 0 16px; border-radius: 16px; border: 1px solid var(--g-border); background: var(--g-card); color: var(--g-fg); font-size: 17px; font-family: inherit; min-width: 0; }
+.wl-g .g-form input:focus-visible, .wl-g .g-form select:focus-visible, .wl-g .g-input:focus-visible { outline: 3px solid var(--g-gold); outline-offset: 2px; }
+.wl-g .g-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.wl-g .g-chk { width: 24px; height: 24px; accent-color: var(--g-primary); cursor: pointer; margin: 0; vertical-align: middle; }
+.wl-g .g-tbl th .g-chk { accent-color: var(--g-gold); }
+.wl-g .g-foot { border-top: 1px solid var(--g-soft); border-bottom: 0; }
+.wl-g .g-card-h .g-input { flex: 0 1 220px; width: 220px; }
+.wl-g .g-card-h h3 { white-space: nowrap; }
+.wl-g .g-btn:disabled { opacity: .45; cursor: not-allowed; filter: none; transform: none; }
