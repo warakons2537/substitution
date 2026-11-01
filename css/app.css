@@ -426,3 +426,5 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .toast::before { content: "✓"; font-weight: 700; color: #7fd4a5; }
 .toast.err::before { content: "!"; color: #ff8f85; display: inline-grid; place-items: center; width: 18px; height: 18px; border: 2px solid currentColor; border-radius: 50%; font-size: 12px; line-height: 1; margin-top: 3px; }
 .toast, .toast.err { border-left: 0; }
+.wl-g .g-hero h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wl-g .g-hero-text { overflow: hidden; }

@@ -11,3 +11,13 @@ export const ICON = {
 export const pill = (st, label, title = '') => `<span class="g-pill g-${st}"${title ? ` title="${esc(title)}"` : ''}>${ICON[st] || ''}<span>${esc(label)}</span></span>`;
 export const hero = (title, sub, action = '') => `<header class="g-hero"><div class="g-logo"><span class="g-mark" aria-hidden="true">WL</span><span class="g-brand">WL ระบบสอนแทน</span></div><div class="g-hero-text">
   <h1>${esc(title)}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${action}</header>`;
+
+// ลดขนาดชื่อเรื่องในฮีโร่ตามความกว้างจอ ให้อยู่บรรทัดเดียว (ไม่ลดต่ำกว่า 18px)
+export function fitHeroTitles(root = document) {
+  root.querySelectorAll('.g-hero h1').forEach((h) => {
+    h.style.fontSize = '';
+    const max = parseFloat(getComputedStyle(h).fontSize);
+    let size = max;
+    while (h.scrollWidth > h.clientWidth + 1 && size > 18) { size -= 1; h.style.fontSize = `${size}px`; }
+  });
+}
