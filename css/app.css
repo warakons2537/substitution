@@ -353,7 +353,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .wl-g .g-sub { margin: 0; color: var(--g-muted); font-size: 15px; }
 .wl-g .g-filters { display: flex; flex-wrap: wrap; gap: 12px 16px; }
 .wl-g .g-filters label { display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 500; color: var(--g-muted); min-width: 0; flex: 1 1 200px; max-width: 320px; }
-.wl-g .g-filters select { min-height: 48px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--g-border); background: var(--g-card); color: var(--g-fg); font-size: 17px; }
+.wl-g .g-filters input, .wl-g .g-filters select { min-height: 48px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--g-border); background: var(--g-card); color: var(--g-fg); font-size: 17px; }
 .wl-g .g-chips { display: flex; flex-wrap: wrap; gap: 10px; }
 .wl-g .g-chip { min-height: 48px; padding: 0 20px; border-radius: 999px; border: 1px solid var(--g-border); background: var(--g-card); color: var(--g-fg); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 17px; transition: background .2s ease, color .2s ease, border-color .2s ease, transform .12s ease; }
 .wl-g .g-chip:hover { border-color: var(--g-primary); } .wl-g .g-chip:active { transform: scale(.97); }
@@ -428,3 +428,22 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .toast, .toast.err { border-left: 0; }
 .wl-g .g-hero h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wl-g .g-hero-text { overflow: hidden; }
+
+/* การ์ดรายการ (ผู้ใช้ · ประเภทการลา) — มือถือใช้ง่ายกว่าตารางหลายคอลัมน์ */
+.wl-g [hidden] { display: none !important; }
+.wl-g .g-stack { display: flex; flex-direction: column; gap: 22px; }
+.wl-g .g-ucards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; }
+.wl-g .g-ucard { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; background: var(--g-card); border: 1px solid var(--g-border); border-radius: 20px; min-width: 0; }
+.wl-g .g-ucard-h { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 12px; }
+.wl-g .g-ucard-h b { font-size: 18px; overflow-wrap: anywhere; }
+.wl-g .g-stackpills { display: flex; flex-wrap: wrap; gap: 6px; }
+.wl-g .g-ucard .g-form { padding: 0; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.wl-g .g-ucard .g-actions { justify-content: flex-end; }
+.wl-g .g-checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.wl-g .g-check { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border: 1px solid var(--g-border); border-radius: 999px; background: var(--g-card); color: var(--g-fg); font-size: 16px; cursor: pointer; }
+.wl-g .g-check:has(input:checked) { border-color: var(--g-primary); background: var(--g-hover); }
+.wl-g .g-check:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+.wl-g .g-addrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.wl-g .g-addrow .g-input { flex: 1 1 220px; width: auto; }
+.wl-g .g-checks .g-check, .wl-g .g-ucard .g-check { flex-direction: row; align-items: center; }
+.wl-g .g-check .g-chk { flex: none; }
