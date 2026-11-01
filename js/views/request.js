@@ -15,12 +15,12 @@ export async function render(el, { tt, me }) {
     el.innerHTML = `<div class="wl-g">${hero('แจ้งขอลา/ขอสอนแทน', '')}<section class="g-card"><p class="g-empty">บัญชีนี้ยังไม่ได้ผูกกับชื่อครู กรุณาแจ้งผู้ดูแลระบบ</p></section></div>`;
     return;
   }
-  el.innerHTML = `<div class="wl-g">${hero('แจ้งขอลา/ขอสอนแทน', 'เลือกวันลาและคาบ ระบบเลือกครูสอนแทนให้ เปลี่ยนได้ก่อนส่ง')}</div>
-    <div class="card"><div id="r-form"></div></div>
-    <div class="card"><label>ระหว่างลาติดต่อได้ที่<input id="r-contact" maxlength="200" value="${esc(me.phone ? `หมายเลขโทรศัพท์ ${me.phone}` : '')}"></label></div>
-    <div class="card"><p class="muted small">ระบบเลือกครูสอนแทนให้ เปลี่ยนได้ตามต้องการ — ที่เลือกไว้มีผลทันทีเมื่อส่ง · คาบที่เลือก "ให้ฝ่ายวิชาการจัด" ฝ่ายวิชาการจะจัดให้ภายหลัง</p>
+  el.innerHTML = `<div class="wl-g">${hero('แจ้งขอลา/ขอสอนแทน', 'เลือกวันลาและคาบ ระบบเลือกครูสอนแทนให้ เปลี่ยนได้ก่อนส่ง')}
+    <section class="g-card"><div id="r-form"></div></section>
+    <section class="g-card"><div class="g-pad"><label class="g-lbl">ระหว่างลาติดต่อได้ที่<input id="r-contact" maxlength="200" value="${esc(me.phone ? `หมายเลขโทรศัพท์ ${me.phone}` : '')}"></label></div></section>
+    <section class="g-card"><div class="g-pad"><p class="muted small">ระบบเลือกครูสอนแทนให้ เปลี่ยนได้ตามต้องการ — ที่เลือกไว้มีผลทันทีเมื่อส่ง · คาบที่เลือก "ให้ฝ่ายวิชาการจัด" ฝ่ายวิชาการจะจัดให้ภายหลัง</p>
       <div id="r-plan"></div>
-      <div class="actions"><button class="btn btn-primary" id="r-send" disabled>ส่งคำขอ</button></div></div>`;
+      <div class="g-actions"><button class="g-btn" type="button" id="r-send" disabled>ส่งคำขอ</button></div></div></section></div>`;
   const rank = await rankData();
   let plan = null; let cur = null; let lastKey = '';
   const rebuild = (v) => {

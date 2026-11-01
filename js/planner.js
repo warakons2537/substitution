@@ -86,8 +86,8 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
   }
 
   const draw = () => {
-    if (!items.length) { el.innerHTML = '<p class="muted">ไม่มีคาบสอนในวัน/คาบที่เลือก (ตามตารางสอนที่ใช้อยู่)</p>'; return; }
-    el.innerHTML = `<div class="table-wrap"><table class="tbl planner">
+    if (!items.length) { el.innerHTML = '<p class="g-empty">ไม่มีคาบสอนในวัน/คาบที่เลือก (ตามตารางสอนที่ใช้อยู่)</p>'; return; }
+    el.innerHTML = `<div class="g-scroll"><table class="g-tbl planner">
       <thead><tr><th>วันที่</th><th>คาบ</th><th>ชั้น</th><th>วิชา</th><th>ครูสอนแทน</th><th>หมายเหตุ</th></tr></thead><tbody>
       ${items.map((it, i) => {
         const list = rankOf(it, items);

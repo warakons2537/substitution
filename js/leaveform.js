@@ -11,9 +11,9 @@ import { readLeaveText, parseLeave } from './leaveread.js';
  */
 export function mountLeaveForm(el, { data, fixedTeacher = null, withReason = false, onChange, onParsed }) {
   const teachers = realTeachers(data);
-  el.innerHTML = `<label>อ่านจากไฟล์ใบลา (.docx / .pdf ที่มีข้อความ — ไม่รองรับไฟล์สแกน)
+  el.innerHTML = `<div class="g-pad"><label class="g-lbl">อ่านจากไฟล์ใบลา (.docx / .pdf ที่มีข้อความ — ไม่รองรับไฟล์สแกน)
     <input type="file" name="lf-file" accept=".docx,.pdf"></label><p class="small" id="lf-msg"></p>
-  <div class="form-grid">
+  <div class="g-form">
     <label>ครูที่ลา${fixedTeacher ? `<input value="${esc(fixedTeacher)}" disabled>`
       : `<select name="teacher"><option value="">— เลือก —</option>${opts(teachers)}</select>`}</label>
     <label>ตั้งแต่วันที่<input type="date" name="from" value="${todayISO()}"></label>
@@ -21,7 +21,7 @@ export function mountLeaveForm(el, { data, fixedTeacher = null, withReason = fal
     <label>ประเภทการลา<select name="leave_type">${opts(LEAVE_TYPES, 'ไม่ระบุ')}</select></label>
     ${withReason ? '<label class="span2">เหตุผล/รายละเอียด<input name="reason" maxlength="300"></label>' : ''}
   </div>
-  <div class="periods" id="lf-periods"></div>`;
+  <div class="periods" id="lf-periods"></div></div>`;
 
   const val = (n) => $(`[name="${n}"]`, el)?.value || '';
   const read = () => {
@@ -45,7 +45,7 @@ export function mountLeaveForm(el, { data, fixedTeacher = null, withReason = fal
     const ss = d < 0 ? [] : slotsOf(data, v.teacher, d);
     box.innerHTML = ss.length
       ? `<span class="muted small">คาบที่ลา (ติ๊กออกถ้าไม่ได้ลาทั้งวัน):</span> ${ss.map((s) =>
-          `<label class="chk"><input type="checkbox" value="${s.p}" checked> คาบ ${s.p}</label>`).join('')}`
+          `<label class="chk"><input class="g-chk" type="checkbox" value="${s.p}" checked> คาบ ${s.p}</label>`).join('')}`
       : '<p class="muted small">วันนี้ไม่มีคาบสอนตามตารางสอน</p>';
     $$('input', box).forEach((c) => c.addEventListener('change', () => onChange(read())));
   };
@@ -69,7 +69,7 @@ export function mountLeaveForm(el, { data, fixedTeacher = null, withReason = fal
     } catch (err) { msg.className = 'small warn'; msg.textContent = err.message; }
     e.target.value = '';
   });
-  $$('.form-grid input, .form-grid select', el).forEach((x) => x.addEventListener('change', () => {
+  $$('.g-form input, .g-form select', el).forEach((x) => x.addEventListener('change', () => {
     if (x.name === 'from' && val('to') < val('from')) $('[name="to"]', el).value = val('from');
     if (['teacher', 'from', 'to'].includes(x.name)) drawPeriods();
     onChange(read());
