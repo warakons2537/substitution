@@ -3,7 +3,7 @@ import { $, $$, esc, opts, toast, todayISO, thDate, thDay, dowIndex , confirmBox
 import { sb, q } from '../db.js';
 import { LEAVE_TYPES } from '../config.js';
 import { realTeachers, gradeLabel } from '../timetable.js';
-import { hero } from '../gui.js';
+import { hero, bulkBar } from '../gui.js';
 
 const SRC = { assist: 'ช่วยจัด', manual: 'บันทึกเอง', request: 'คำขอ' };
 
@@ -43,7 +43,8 @@ export async function render(el, ctx) {
           <td class="nowrap"><button class="g-btn g-btn-line g-btn-sm" type="button" data-edit="${r.id}">แก้ไข</button>
             ${admin ? `<button class="g-btn g-btn-line g-btn-sm g-danger" type="button" data-del="${r.id}">ลบ</button>` : ''}</td></tr>`).join('')}
       </tbody></table></div><div class="g-card-h g-foot"><span class="g-sub">รวม ${list.length} คาบ</span>
-      ${admin ? '<button class="g-btn g-btn-line g-btn-sm g-danger" type="button" id="m-del-sel" disabled>ลบรายการที่เลือก</button>' : ''}</div>` : '<p class="g-empty">ยังไม่มีรายการในเดือนนี้</p>'}</section></div>`;
+      </div>` : '<p class="g-empty">ยังไม่มีรายการในเดือนนี้</p>'}</section>
+    ${admin && list.length ? bulkBar('mb', '<button class="g-btn g-btn-line g-danger" type="button" id="m-del-sel">ลบรายการที่เลือก</button>') : ''}</div>`;
 
   const f = $('#m-form', el);
   const set = (n, v) => { f.elements[n].value = v ?? ''; };
@@ -80,7 +81,8 @@ export async function render(el, ctx) {
   }));
   // ผู้ดูแลระบบ: เลือกหลายรายการแล้วลบ (รายการที่ลบไม่ถูกนับในสถิติอีก)
   const picks = () => $$('.m-pick:checked', el).map((c) => c.value);
-  const sync = () => { const b = $('#m-del-sel', el); if (b) { const n = picks().length; b.disabled = !n; b.textContent = n ? `ลบรายการที่เลือก (${n})` : 'ลบรายการที่เลือก'; } };
+  const sync = () => { const bar = $('#mb-bulk', el); if (bar) { const n = picks().length; bar.hidden = !n; $('#mb-n', el).textContent = n; } };
+  $('#mb-clear', el)?.addEventListener('click', () => { $$('.m-pick, #m-all', el).forEach((c) => { c.checked = false; }); sync(); });
   $('#m-all', el)?.addEventListener('change', (e) => { $$('.m-pick', el).forEach((c) => { c.checked = e.target.checked; }); sync(); });
   $$('.m-pick', el).forEach((c) => c.addEventListener('change', sync));
   $('#m-del-sel', el)?.addEventListener('click', async () => {
