@@ -11,8 +11,7 @@ import { readLeaveText, parseLeave } from './leaveread.js';
  */
 export function mountLeaveForm(el, { data, fixedTeacher = null, withReason = false, onChange, onParsed }) {
   const teachers = realTeachers(data);
-  el.innerHTML = `<div class="g-pad"><label class="g-lbl">อ่านจากไฟล์ใบลา (.docx / .pdf ที่มีข้อความ — ไม่รองรับไฟล์สแกน)
-    <input type="file" name="lf-file" accept=".docx,.pdf"></label><p class="small" id="lf-msg"></p>
+  el.innerHTML = `<div class="g-pad">
   <div class="g-form">
     <label>ครูที่ลา${fixedTeacher ? `<input value="${esc(fixedTeacher)}" disabled>`
       : `<select name="teacher"><option value="">— เลือก —</option>${opts(teachers)}</select>`}</label>
@@ -21,7 +20,12 @@ export function mountLeaveForm(el, { data, fixedTeacher = null, withReason = fal
     <label>ประเภทการลา<select name="leave_type">${opts(LEAVE_TYPES, 'ไม่ระบุ')}</select></label>
     ${withReason ? '<label class="span2">เหตุผล/รายละเอียด<input name="reason" maxlength="300"></label>' : ''}
   </div>
-  <div class="periods" id="lf-periods"></div></div>`;
+  <div class="periods" id="lf-periods"></div>
+  <details class="g-fread"><summary>ช่วยกรอกจากไฟล์ใบลา (ไม่บังคับ)</summary>
+    <label class="g-lbl">เลือกไฟล์ใบลา (.docx / .pdf ที่มีข้อความ — ไม่รองรับไฟล์สแกน)
+      <input type="file" name="lf-file" accept=".docx,.pdf"></label>
+    <p class="small muted">ใช้ช่วยกรอกฟอร์มข้างบนเท่านั้น ไฟล์<b>ไม่ถูกแนบหรือส่งไปกับคำขอ</b> · ตรวจข้อมูลที่กรอกให้ก่อนส่ง</p>
+    <p class="small" id="lf-msg"></p></details></div>`;
 
   const val = (n) => $(`[name="${n}"]`, el)?.value || '';
   const read = () => {
