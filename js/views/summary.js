@@ -1,7 +1,7 @@
 // สรุปรายครู: ลากี่วัน · ถูกสอนแทนกี่คาบ · สอนแทนผู้อื่นกี่คาบ (ครูทั่วไปเห็นเฉพาะของตัวเอง)
 import { $, esc, toast, todayISO, thDate } from '../util.js';
 import { rankData } from '../db.js';
-import { fiscalYear, fiscalRange, fmtDays, leavesRange } from '../leaves.js';
+import { fiscalYear, fiscalRange, fmtDays, leavesRange, loadRules, nonLeaveSet } from '../leaves.js';
 import { has } from '../perm.js';
 import { hero } from '../gui.js';
 
@@ -9,12 +9,14 @@ const KEY = 'wlsub-sum';
 const monthOf = (m) => { const [y, mm] = m.split('-').map(Number); return { from: `${m}-01`, to: `${m}-${String(new Date(y, mm, 0).getDate()).padStart(2, '0')}` }; };
 
 /** รวมตัวเลขรายครูจากทะเบียนการลา + รายการสอนแทน (status confirmed) ในช่วงวันที่ */
-export function summarize(leaves, recs, from, to) {
+export function summarize(leaves, recs, from, to, nonLeave = new Set()) {
   const m = new Map();
-  const row = (n) => { if (!m.has(n)) m.set(n, { name: n, leaves: 0, days: 0, covered: 0, gave: 0 }); return m.get(n); };
+  const row = (n) => { if (!m.has(n)) m.set(n, { name: n, leaves: 0, days: 0, official: 0, covered: 0, gave: 0 }); return m.get(n); };
   for (const l of leaves) {
     if (!['pending', 'approved'].includes(l.status) || l.date_from < from || l.date_from > to) continue;
-    const r = row(l.teacher_name); r.leaves += 1; r.days += Number(l.days);
+    const r = row(l.teacher_name);
+    if (nonLeave.has(l.leave_type)) r.official += Number(l.days);     // ไปราชการ: ไม่นับเป็นวันลา
+    else { r.leaves += 1; r.days += Number(l.days); }
   }
   for (const x of recs) {
     if (x.st !== 'confirmed' || x.d < from || x.d > to) continue;
@@ -27,11 +29,12 @@ export function summarize(leaves, recs, from, to) {
 export async function render(el, ctx) {
   const { me } = ctx; const staff = has(me, 'academic') || has(me, 'hr') || has(me, 'director');
   const f = JSON.parse(sessionStorage.getItem(KEY) || 'null') || monthOf(todayISO().slice(0, 7));
-  const [rank, leaves] = await Promise.all([rankData(), leavesRange(me, f.from, f.to)]);
-  let rows = summarize(leaves, rank.records, f.from, f.to);
+  const [rank, leaves, rules] = await Promise.all([rankData(), leavesRange(me, f.from, f.to), loadRules()]);
+  let rows = summarize(leaves, rank.records, f.from, f.to, nonLeaveSet(rules));
   if (!staff) rows = rows.filter((r) => r.name === me.teacher);
   const fy = fiscalYear(todayISO()); const fr = fiscalRange(fy);
-  const tot = rows.reduce((a, r) => ({ days: a.days + r.days, covered: a.covered + r.covered, gave: a.gave + r.gave }), { days: 0, covered: 0, gave: 0 });
+  const tot = rows.reduce((a, r) => ({ days: a.days + r.days, official: a.official + r.official, covered: a.covered + r.covered, gave: a.gave + r.gave }), { days: 0, official: 0, covered: 0, gave: 0 });
+  const hasOff = tot.official > 0;
 
   el.innerHTML = `<div class="wl-g">${hero('สรุปรายครู', `${esc(thDate(f.from))} – ${esc(thDate(f.to))}`)}
     <section class="g-card"><div class="g-pad"><form id="sm-form" class="g-form">
@@ -39,12 +42,12 @@ export async function render(el, ctx) {
       <label>ถึง<input type="date" name="to" value="${f.to}" required></label>
       <div class="g-actions"><button class="g-btn" type="submit">แสดง</button>
         <button class="g-btn g-btn-line" type="button" id="sm-month">เดือนนี้</button><button class="g-btn g-btn-line" type="button" id="sm-fy">ปีงบประมาณ ${fy}</button></div></form>
-      <p class="g-sub">"สอนแทนให้ผู้อื่น" นับจากคาบที่ยืนยันแล้ว · ${staff ? 'ใช้ดูความเป็นธรรมของการสอนแทน' : 'แสดงเฉพาะของคุณ'}</p></div></section>
-    <section class="g-card">${rows.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>ครู</th><th class="c">ลา (ครั้ง)</th><th class="c">ลา (วัน)</th>
+      <p class="g-sub">"ไปราชการ" ไม่นับเป็นวันลา · "สอนแทนให้ผู้อื่น" นับจากคาบที่ยืนยันแล้ว · ${staff ? 'ใช้ดูความเป็นธรรมของการสอนแทน' : 'แสดงเฉพาะของคุณ'}</p></div></section>
+    <section class="g-card">${rows.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>ครู</th><th class="c">ลา (ครั้ง)</th><th class="c">ลา (วัน)</th>${hasOff ? '<th class="c">ไปราชการ (วัน)</th>' : ''}
       <th class="c">ถูกสอนแทน (คาบ)</th><th class="c">สอนแทนให้ผู้อื่น (คาบ)</th><th class="c">สอนแทน − ถูกแทน</th></tr></thead><tbody>
-      ${rows.map((r) => { const d = r.gave - r.covered; return `<tr><td class="nowrap"><b>${esc(r.name)}</b></td><td class="c num">${r.leaves || '-'}</td><td class="c num">${r.days ? fmtDays(r.days) : '-'}</td>
+      ${rows.map((r) => { const d = r.gave - r.covered; return `<tr><td class="nowrap"><b>${esc(r.name)}</b></td><td class="c num">${r.leaves || '-'}</td><td class="c num">${r.days ? fmtDays(r.days) : '-'}</td>${hasOff ? `<td class="c num">${r.official ? fmtDays(r.official) : '-'}</td>` : ''}
         <td class="c num">${r.covered || '-'}</td><td class="c num">${r.gave || '-'}</td><td class="c num">${d > 0 ? '+' : ''}${d}</td></tr>`; }).join('')}
-      </tbody>${staff ? `<tfoot><tr><th>รวม</th><th></th><th class="c">${fmtDays(tot.days)}</th><th class="c">${tot.covered}</th><th class="c">${tot.gave}</th><th></th></tr></tfoot>` : ''}</table></div>`
+      </tbody>${staff ? `<tfoot><tr><th>รวม</th><th></th><th class="c">${fmtDays(tot.days)}</th>${hasOff ? `<th class="c">${fmtDays(tot.official)}</th>` : ''}<th class="c">${tot.covered}</th><th class="c">${tot.gave}</th><th></th></tr></tfoot>` : ''}</table></div>`
       : '<p class="g-empty">ไม่มีข้อมูลในช่วงนี้</p>'}</section></div>`;
   const go = (v) => { sessionStorage.setItem(KEY, JSON.stringify(v)); render(el, ctx); };
   $('#sm-form', el).addEventListener('submit', (e) => {

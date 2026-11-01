@@ -14,7 +14,7 @@ export async function loadRules() {
   let types = []; let holidays = [];
   try { types = await q(sb.from('sub_leave_types').select('*').order('sort_order')); } catch { /* ยังไม่ได้รัน SQL ใหม่ */ }
   try { holidays = await q(sb.from('sub_holidays').select('*').order('day')); } catch { /* */ }
-  if (!types.length) types = LEAVE_TYPES.map((t, i) => ({ leave_type: t, quota_days: null, calendar_days: t === 'ลาคลอด', sort_order: i, active: true }));
+  if (!types.length) types = LEAVE_TYPES.map((t, i) => ({ leave_type: t, quota_days: null, calendar_days: t === 'ลาคลอด', sort_order: i, active: true, is_leave: t !== 'ไปราชการ' }));
   return { types, holidays, hset: new Set(holidays.map((h) => String(h.day).slice(0, 10))),
     byType: Object.fromEntries(types.map((t) => [t.leave_type, t])) };
 }
@@ -67,3 +67,6 @@ export function roundUsage(leaves, name, fy) {
 }
 /** รอบที่วันที่นั้นอยู่ (1/2) */
 export const roundNo = (s) => { const m = s.slice(5, 7); return m >= '04' && m <= '09' ? 2 : 1; };
+
+/** ประเภทที่ไม่นับเป็น "วันลา" (เช่น ไปราชการ) — ใช้คอลัมน์ is_leave ถ้ามี ไม่มีก็ถือว่า "ไปราชการ" ไม่ใช่วันลา */
+export const nonLeaveSet = (rules) => new Set(rules.types.filter((t) => t.is_leave === false || (t.is_leave === undefined && t.leave_type === 'ไปราชการ')).map((t) => t.leave_type));

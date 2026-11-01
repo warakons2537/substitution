@@ -3,7 +3,7 @@ import { $, $$, esc, opts, toast, todayISO, thDate, modal, confirmBox } from '..
 import { sb, q, settings } from '../db.js';
 import { has } from '../perm.js';
 import { realTeachers } from '../timetable.js';
-import { loadRules, countDays, usage, fiscalYear, fiscalRange, fmtDays, roundUsage } from '../leaves.js';
+import { loadRules, countDays, usage, fiscalYear, fiscalRange, fmtDays, roundUsage, nonLeaveSet } from '../leaves.js';
 import { EVAL_LIMIT } from '../config.js';
 
 const NAME_KEY = 'wlsub-leave-filter';
@@ -29,22 +29,23 @@ export async function render(el, ctx) {
   const types = rules.types.filter((t) => t.active || all.some((l) => l.leave_type === t.leave_type));
   const years = [...new Set([fiscalYear(todayISO()), fy, fiscalYear(todayISO()) - 1])].sort((a, b) => b - a);
 
+  const off = nonLeaveSet(rules);   // เช่น ไปราชการ: ไม่นับเป็นวันลา
   const sumOne = (name) => usage(all.filter((l) => l.teacher_name === name), fy);
   let summary;
   if (teacherF || !staff) {
     const u = sumOne(teacherF);
     summary = `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>ประเภท</th><th class="c">ครั้ง</th><th class="c">วันที่ลา</th><th class="c">โควตา</th><th class="c">คงเหลือ</th></tr></thead><tbody>
       ${types.map((t) => { const x = u[t.leave_type] || { used: 0, count: 0 }; const left = t.quota_days == null ? null : t.quota_days - x.used;
-        return `<tr><td>${esc(t.leave_type)}</td><td class="c">${x.count}</td><td class="c">${fmtDays(x.used)}</td>
+        return `<tr><td>${esc(t.leave_type)}${off.has(t.leave_type) ? ' <span class="g-tag">ไม่นับเป็นวันลา</span>' : ''}</td><td class="c">${x.count}</td><td class="c">${fmtDays(x.used)}</td>
           <td class="c">${t.quota_days == null ? '<span class="muted">ไม่จำกัด</span>' : fmtDays(t.quota_days)}</td>
           <td class="c">${left == null ? '' : `<span class="${left < 0 ? 'g-over' : ''}">${fmtDays(left)}</span>`}</td></tr>`; }).join('')}
       </tbody></table></div>`;
   } else {
     const who = [...new Set(all.map((l) => l.teacher_name))].sort((a, b) => a.localeCompare(b, 'th'));
     const used = types.filter((t) => all.some((l) => l.leave_type === t.leave_type));
-    summary = who.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>ครู</th>${used.map((t) => `<th class="c">${esc(t.leave_type)}</th>`).join('')}<th class="c">รวม (วัน)</th></tr></thead><tbody>
+    summary = who.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>ครู</th>${used.map((t) => `<th class="c">${esc(t.leave_type)}</th>`).join('')}<th class="c">รวมวันลา${used.some((t) => off.has(t.leave_type)) ? ' (ไม่รวมไปราชการ)' : ''}</th></tr></thead><tbody>
       ${who.map((n) => { const u = sumOne(n); let tot = 0;
-        return `<tr><td>${esc(n)}</td>${used.map((t) => { const x = u[t.leave_type]; tot += x?.used || 0;
+        return `<tr><td>${esc(n)}</td>${used.map((t) => { const x = u[t.leave_type]; if (!off.has(t.leave_type)) tot += x?.used || 0;
           const over = x && t.quota_days != null && x.used > t.quota_days;
           return `<td class="c ${over ? 'g-over' : ''}">${x ? fmtDays(x.used) : '<span class="muted">-</span>'}</td>`; }).join('')}<td class="c"><b>${fmtDays(tot)}</b></td></tr>`; }).join('')}
       </tbody></table></div>` : '<p class="g-empty">ยังไม่มีข้อมูลการลาในปีงบประมาณนี้</p>';
