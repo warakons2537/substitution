@@ -29,14 +29,14 @@ export const opts = (list, sel = '') => list.map((x) => {
 export function modal(title, bodyHtml, { okText = 'บันทึก', cancelText = 'ยกเลิก', wide = false } = {}) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
-    wrap.className = 'modal-wrap';
+    wrap.className = 'modal-wrap wl-g';
     wrap.innerHTML = `
       <div class="modal ${wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true">
         <h3>${esc(title)}</h3>
         <form class="modal-body">${bodyHtml}
           <div class="modal-actions">
-            ${cancelText ? `<button type="button" class="btn btn-ghost" data-x>${esc(cancelText)}</button>` : ''}
-            <button type="submit" class="btn btn-primary">${esc(okText)}</button>
+            ${cancelText ? `<button type="button" class="g-btn g-btn-line" data-x>${esc(cancelText)}</button>` : ''}
+            <button type="submit" class="g-btn">${esc(okText)}</button>
           </div>
         </form>
       </div>`;

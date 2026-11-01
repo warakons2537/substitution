@@ -403,3 +403,26 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 .wl-g .planner td { min-width: 0; }
 @media (max-width: 640px) { .wl-g .planner .sel-sub { min-width: 200px; } .wl-g .g-form .span2 { grid-column: 1 / -1; } .wl-g .g-pad { padding: 14px 16px 16px; } }
 .wl-g .planner td:first-child { white-space: nowrap; }
+
+/* หน้าต่าง modal (util.js modal/confirmBox) — สไตล์บอร์ด G: หัวสี primary ขอบล่างทอง ฟอร์มช่อง 48px ปุ่มหลักทอง */
+.wl-g.modal-wrap { display: grid; gap: 0; flex-direction: initial; background: rgba(22, 32, 46, .5); }
+.wl-g .modal { background: var(--g-card); color: var(--g-fg); border-radius: 24px; padding: 0; gap: 0; box-shadow: 0 16px 48px rgba(22, 32, 46, .35); }
+.wl-g .modal h3 { margin: 0; padding: 18px 24px; background: var(--g-primary); color: #fff; font-size: 20px; font-weight: 700; border-bottom: 4px solid var(--g-gold); }
+.wl-g .modal-body { padding: 20px 24px 22px; gap: 14px; }
+.wl-g .modal-body label { display: flex; flex-direction: column; gap: 4px; font-size: 15px; font-weight: 500; color: var(--g-muted); min-width: 0; }
+.wl-g .modal-body input:not([type="checkbox"]):not([type="radio"]), .wl-g .modal-body select, .wl-g .modal-body textarea { min-height: 48px; padding: 0 16px; border-radius: 16px; border: 1px solid var(--g-border); background: var(--g-card); color: var(--g-fg); font-size: 17px; font-family: inherit; min-width: 0; width: 100%; }
+.wl-g .modal-body textarea { padding: 10px 16px; }
+.wl-g .modal-body input:focus-visible, .wl-g .modal-body select:focus-visible, .wl-g .modal-body textarea:focus-visible { outline: 3px solid var(--g-gold); outline-offset: 2px; }
+.wl-g .modal-body label.chk { flex-direction: row; align-items: center; gap: 10px; color: var(--g-fg); font-size: 17px; cursor: pointer; }
+.wl-g .modal-body input[type="checkbox"], .wl-g .modal-body input[type="radio"] { width: 24px; height: 24px; min-height: 0; accent-color: var(--g-primary); margin: 0; flex: none; }
+.wl-g .modal-body input:disabled { background: var(--g-hover); color: var(--g-muted); }
+.wl-g .modal-body p { margin: 0; font-size: 17px; }
+.wl-g .modal-body .muted, .wl-g .modal-body .small { color: var(--g-muted); font-size: 15px; }
+.wl-g .modal-body .note { background: var(--g-warn-bg); color: var(--g-warn-fg); border: 0; border-radius: 16px; padding: 10px 14px; font-size: 16px; }
+.wl-g .modal-actions { margin-top: 6px; padding-top: 16px; border-top: 1px solid var(--g-soft); gap: 10px; flex-wrap: wrap; }
+@media (max-width: 640px) { .wl-g .modal h3 { padding: 16px 18px; } .wl-g .modal-body { padding: 16px 18px 18px; } .wl-g .modal-actions .g-btn { flex: 1 1 0; } }
+/* ข้อความแจ้งสั้น (toast): ใส่เครื่องหมายนำหน้า ✓ / ! ไม่พึ่งสีอย่างเดียว */
+.toast { font-family: "Sarabun", "Noto Sans Thai", system-ui, sans-serif; font-size: 16px; border-radius: 16px; display: flex; align-items: flex-start; gap: 10px; }
+.toast::before { content: "✓"; font-weight: 700; color: #7fd4a5; }
+.toast.err::before { content: "!"; color: #ff8f85; display: inline-grid; place-items: center; width: 18px; height: 18px; border: 2px solid currentColor; border-radius: 50%; font-size: 12px; line-height: 1; margin-top: 3px; }
+.toast, .toast.err { border-left: 0; }
