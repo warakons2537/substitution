@@ -34,17 +34,21 @@ export async function render(el, ctx) {
   if (me.teacher) { stats.push([myReq.length, 'คำขอของฉันที่ยังจัดไม่ครบ', 'mine']); stats.push([mineUp, 'คาบที่ฉันต้องสอนแทน', 'mysubs']); }
 
   const cta = ac ? ['assist', 'ช่วยจัดครูสอนแทน'] : (hr || dir) ? ['approvals', 'ตรวจ/อนุญาตใบลา'] : me.teacher ? ['request', 'ยื่นใบลา'] : null;
-  el.innerHTML = `<div class="welcome"><span class="av" aria-hidden="true">${esc((name.replace(/^(ครู|นาย|นางสาว|นาง)\s*/, '').replace(/^[เแโใไ]/, '')[0]) || '?')}</span>
-      <div><h1>สวัสดี ${esc(name)}</h1><p>${esc(thDay(today))} ${esc(thDate(today, { day: 'numeric', month: 'long', year: 'numeric' }))} · ${esc(dutyText(me))}</p></div>
-      ${cta ? `<a class="btn btn-gold" href="#${cta[0]}">${cta[1]}</a>` : ''}</div>
-    ${urgent.length ? `<div class="note">มี ${urgent.length} คิวสอนแทนที่ต้องจัดภายในวันนี้-พรุ่งนี้ · <a href="#requests">ไปจัดเลย</a></div>` : ''}
-    <div class="stats">${stats.map(([n, t, h]) => `<a class="card stat" href="#${h}" style="text-decoration:none;color:inherit"><b>${n}</b><span>${t}</span></a>`).join('')}</div>
-    ${(hr || dir || ac) ? `<div class="card"><h3>ครูลาวันนี้</h3>${todayAbsent.length ? `<div class="list">${todayAbsent.map((l) => `<div><span><b>${esc(l.teacher_name)}</b></span>
-      <span class="muted small">${esc(l.leave_type)}${l.half ? ` (${l.half === 'am' ? 'เช้า' : 'บ่าย'})` : ''}</span></div>`).join('')}</div>` : '<p class="muted">ไม่มีครูลาวันนี้</p>'}</div>` : ''}
-    <div class="card"><h3>สอนแทนวันนี้</h3>${todayRecs.length ? `<div class="list">${todayRecs.map((r) => `<div>
-      <span><b>คาบ ${r.p}</b></span><span>${esc(r.a)} → ${r.s ? `<b>${esc(r.s)}</b>` : '<span class="muted">ไม่ต้องสอนแทน</span>'}</span></div>`).join('')}</div>`
-      : '<p class="muted">วันนี้ไม่มีรายการสอนแทน</p>'}</div>
-    ${ac && pendingReq.length ? `<div class="card"><div class="row-between"><h3>คิวรอจัดครูสอนแทน</h3><a class="btn btn-sm" href="#requests">ดูทั้งหมด</a></div>
-      <div class="list">${pendingReq.slice(0, 6).map((r) => `<div><span><b>${esc(r.teacher_name)}</b> · ${esc(r.leave_type)}</span>
-        <span class="muted small">${esc(dateText(r))} · ${esc(periodText(r))}</span></div>`).join('')}</div></div>` : ''}`;
+  const clock = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.6"/></svg>';
+  const alertI = '<svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.4M8 11h.01"/></svg>';
+  el.innerHTML = `<div class="wl-g">
+    <header class="g-hero"><div class="g-hero-text"><div class="g-eyebrow">WL ระบบสอนแทน</div>
+      <h1>สวัสดี ${esc(name)}</h1><p>${esc(thDay(today))} ${esc(thDate(today, { day: 'numeric', month: 'long', year: 'numeric' }))} · ${esc(dutyText(me))}</p></div>
+      ${cta ? `<a class="g-btn" href="#${cta[0]}">${cta[1]}</a>` : ''}</header>
+    ${urgent.length ? `<div class="g-note" role="status">${alertI}<span>มี ${urgent.length} คิวสอนแทนที่ต้องจัดภายในวันนี้-พรุ่งนี้ · <a href="#requests">ไปจัดเลย</a></span></div>` : ''}
+    <div class="g-stats">${stats.map(([n, t, h]) => `<a class="g-stat" href="#${h}"><b>${n}</b><span>${t}</span></a>`).join('')}</div>
+    ${(hr || dir || ac) ? `<section class="g-card"><div class="g-card-h"><h3>ครูลาวันนี้</h3></div>${todayAbsent.length ? todayAbsent.map((l) => `<div class="g-row"><b>${esc(l.teacher_name)}</b>
+      <span class="g-pill">${clock}<span>ลา · ${esc(l.leave_type)}${l.half ? ` (${l.half === 'am' ? 'เช้า' : 'บ่าย'})` : ''}</span></span></div>`).join('') : '<p class="g-empty">ไม่มีครูลาวันนี้</p>'}</section>` : ''}
+    <section class="g-card"><div class="g-card-h"><h3>สอนแทนวันนี้</h3></div>${todayRecs.length ? todayRecs.map((r) => `<div class="g-row">
+      <b class="num">คาบ ${r.p}</b><span>${esc(r.a)} → ${r.s ? `<b>${esc(r.s)}</b>` : '<span class="g-sub">ไม่ต้องสอนแทน</span>'}</span></div>`).join('')
+      : '<p class="g-empty">วันนี้ไม่มีรายการสอนแทน</p>'}</section>
+    ${ac && pendingReq.length ? `<section class="g-card"><div class="g-card-h"><h3>คิวรอจัดครูสอนแทน</h3><a class="g-btn g-btn-line" href="#requests">ดูทั้งหมด</a></div>
+      ${pendingReq.slice(0, 6).map((r) => `<div class="g-row"><span><b>${esc(r.teacher_name)}</b> · ${esc(r.leave_type)}</span>
+        <span class="g-sub">${esc(dateText(r))} · ${esc(periodText(r))}</span></div>`).join('')}</section>` : ''}
+  </div>`;
 }
