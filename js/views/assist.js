@@ -29,6 +29,13 @@ export async function render(el, { tt }) {
     $('#a-save').disabled = !items.length;
   };
   mountLeaveForm($('#a-form'), { data: tt.data, onChange: rebuild });
+  // มาจากหน้า "จัดวันลา": #assist?teacher=..&from=..&to=..&type=..
+  const pre = new URLSearchParams(location.hash.split('?')[1] || '');
+  if (pre.get('teacher')) {
+    for (const [n, k] of [['teacher', 'teacher'], ['from', 'from'], ['to', 'to'], ['leave_type', 'type']]) {
+      const x = $(`#a-form [name="${n}"]`); if (x && pre.get(k)) { x.value = pre.get(k); x.dispatchEvent(new Event('change', { bubbles: true })); }
+    }
+  }
 
   $('#a-save').addEventListener('click', async () => {
     if (!plan || !plan.valid()) { toast('กรุณาเลือกครูสอนแทน (หรือ "ไม่ต้องสอนแทน") ให้ครบทุกคาบ', 'err'); return; }

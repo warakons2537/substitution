@@ -5,6 +5,8 @@ import { realTeachers } from '../timetable.js';
 import { loadRules, countDays, usage, fiscalYear, fmtDays, roundUsage, nonLeaveSet, roundNo } from '../leaves.js';
 import { EVAL_LIMIT } from '../config.js';
 import { hero, pill } from '../gui.js';
+import { has } from '../perm.js';
+import { printSubNotes } from '../print.js';
 
 export async function render(el, ctx) {
   const rules = await loadRules();
@@ -28,7 +30,8 @@ export async function render(el, ctx) {
     <div class="g-checks"><label class="g-check"><input class="g-chk" type="checkbox" name="has_cert"> มีใบรับรองแพทย์</label>
       <label class="g-check"><input class="g-chk" type="checkbox" name="signed"> เซ็นเอกสารแล้ว</label></div></div></section>
     <section class="g-card"><div class="g-pad"><div id="al-prev"><p class="muted">เลือกครูและวันที่</p></div>
-      <div class="g-actions"><button class="g-btn" type="button" id="al-save" disabled>บันทึกการลา</button></div></div></section></div>`;
+      <div class="g-actions"><button class="g-btn" type="button" id="al-save" disabled>บันทึกการลา</button></div></div></section>
+    <section class="g-card"><div class="g-card-h"><h3>การสอนแทนของช่วงนี้</h3></div><div class="g-pad" id="al-subs"><p class="muted">เลือกครูและวันที่</p></div></section></div>`;
 
   const f = (n) => $(`[name="${n}"]`, el);
   let mine = []; let mineFor = '';
@@ -45,13 +48,43 @@ export async function render(el, ctx) {
     return [d, half ? (half === 'am' ? 'ครึ่งวันเช้า' : 'ครึ่งวันบ่าย') : 'นับเป็นวันลา', true];
   };
 
+  let profiles = null;
+  async function showSubs(teacher, from, to) {
+    const box = $('#al-subs', el);
+    if (!teacher || !from) { box.innerHTML = '<p class="muted">เลือกครูและวันที่</p>'; return; }
+    const recs = await q(sb.from('sub_records').select('*').eq('status', 'confirmed').eq('absent_teacher', teacher).gte('sub_date', from).lte('sub_date', to).order('sub_date').order('period')).catch(() => []);
+    if (f('teacher').value !== teacher) return;
+    const groups = [];
+    for (const r of recs) {
+      let g = groups.find((x) => x.date === r.sub_date);
+      if (!g) { g = { date: r.sub_date, name: teacher, leave_type: r.leave_type, recs: [] }; groups.push(g); }
+      g.recs.push(r);
+    }
+    const link = has(ctx.me, 'academic')
+      ? `<a class="g-btn g-btn-line" href="#assist?teacher=${encodeURIComponent(teacher)}&from=${from}&to=${to}&type=${encodeURIComponent(f('leave_type').value)}">จัดสอนแทนต่อ</a>`
+      : '<span class="g-sub">การจัดสอนแทนทำโดยฝ่ายวิชาการ (เมนู "จัดสอนแทน")</span>';
+    box.innerHTML = groups.length
+      ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>วันที่</th><th>คาบ</th><th>ครูสอนแทน</th></tr></thead><tbody>
+        ${groups.map((g) => `<tr><td class="nowrap">${esc(thDay(g.date))} ${esc(thDate(g.date))}</td><td>${g.recs.map((r) => r.period).join(', ')}</td>
+          <td>${g.recs.map((r) => `${r.period}: ${r.substitute_teacher ? esc(r.substitute_teacher) : '<span class="muted">ไม่ต้องสอนแทน</span>'}`).join(' · ')}</td></tr>`).join('')}</tbody></table></div>
+        <div class="g-actions"><button class="g-btn" type="button" id="al-print">พิมพ์บันทึกการสอนแทน (${groups.length} แผ่น)</button>${link}</div>`
+      : `<p class="g-empty">ยังไม่มีการจัดสอนแทนของ ${esc(teacher)} ในช่วงนี้</p><div class="g-actions">${link}</div>`;
+    $('#al-print', el)?.addEventListener('click', async () => {
+      try {
+        profiles ||= await q(sb.rpc('sub_teacher_profiles'));
+        const pr = profiles.find((p) => p.teacher_name === teacher);
+        await printSubNotes(groups.map((g) => ({ ...g, teacher: { full_name: pr?.full_name || teacher, position_short: pr?.position_short || '' } })));
+      } catch (e) { toast(e.message, 'err'); }
+    });
+  }
+
   async function refresh() {
     const teacher = f('teacher').value; const type = f('leave_type').value;
     const from = f('from').value; let to = f('to').value || from; const half = f('half').value;
     if (half || to < from) { to = from; f('to').value = from; }
     const box = $('#al-prev', el); const save = $('#al-save', el);
     save.disabled = true;
-    if (!teacher || !from) { box.innerHTML = '<p class="muted">เลือกครูและวันที่</p>'; return; }
+    if (!teacher || !from) { box.innerHTML = '<p class="muted">เลือกครูและวันที่</p>'; showSubs('', ''); return; }
     await loadMine(teacher);
     if (f('teacher').value !== teacher) return;
     const dates = dateRange(from, to);
@@ -79,6 +112,7 @@ export async function render(el, ctx) {
       </tbody></table></div>`;
     save.disabled = !days || !!clash.length;
     save.dataset.days = days;
+    showSubs(teacher, from, to);
   }
 
   $$('.g-form input, .g-form select', el).forEach((x) => x.addEventListener('change', () => refresh()));
