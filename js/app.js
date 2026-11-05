@@ -17,6 +17,7 @@ import * as home from './views/home.js';
 import * as leaves from './views/leaves.js';
 import * as summary from './views/summary.js';
 import * as approvals from './views/approvals.js';
+import * as assistleave from './views/assistleave.js';
 import * as mysubs from './views/mysubs.js';
 import { icon } from './icons.js';
 import { mountNav } from './navbar.js';
@@ -26,7 +27,7 @@ const root = $('#app');
 
 // hash -> ฟังก์ชันแสดงหน้า (สิทธิ์การเห็นอยู่ที่ js/perm.js)
 const VIEWS = {
-  home: home.render, request: request.render, mine: request.renderMine, approvals: approvals.render, leaves: leaves.render,
+  home: home.render, request: request.render, mine: request.renderMine, approvals: approvals.render, 'assist-leave': assistleave.render, leaves: leaves.render,
   'leave-settings': setts.renderLeave, mysubs: mysubs.render, assist: assist.render, requests: requests.render, records: records.render,
   summary: summary.render, reports: reports.render, import: imp.render, users: users.render, settings: setts.render, audit: audit.render,
   profile: profile.render,
@@ -124,7 +125,7 @@ function drawNav(me, mod, page) {
   // เมนูของระบบปัจจุบัน + หน้าผู้ดูแลระบบ (แสดงในทุกระบบสำหรับผู้ดูแล จะได้หาเจอเสมอ) + ข้อมูลฉัน
   const items = pages.filter((p) => p[0] === 'home' || p[2] === mod || p[0] === 'profile' || p[2] === 'admin');
   $('#side-nav').innerHTML = items.map(([h, t]) => `<a href="#${h}" data-v="${h}">${icon(h)}<span>${esc(t)}</span></a>`).join('')
-    + `<div class="sec"></div><a href="../">${icon('link')}<span>ทางเข้า WL</span></a>`;
+    + `<div class="sec">แอปในเครือ</div>${SIBLINGS.map((x) => `<a href="${esc(x.url)}" class="ext">${icon('link')}<span>${esc(x.name)}</span></a>`).join('')}`;
   const mods = modulesFor(me);
   $('#modsw').innerHTML = mods.length > 1 ? mods.map((m) => `<a href="#${landing(me, m)}" role="tab" class="${m === mod ? 'on' : ''}" aria-selected="${m === mod}">
     <b>${esc(MODULES[m].name)}</b>${MODULES[m].sub ? `<small>${esc(MODULES[m].sub)}</small>` : ''}</a>`).join('') : '';

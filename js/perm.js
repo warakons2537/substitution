@@ -23,6 +23,7 @@ export const PAGES = [
   ['request', 'ยื่นใบลา', 'leave', (me) => !!me.teacher, true],
   ['mine', 'คำขอของฉัน', 'leave', (me) => !!me.teacher, false],
   ['approvals', 'ตรวจ/อนุญาต', 'leave', (me) => has(me, 'hr') || has(me, 'director'), false],
+  ['assist-leave', 'จัดวันลา', 'leave', (me) => has(me, 'hr'), false],
   ['leaves', 'ทะเบียนลา', 'leave', () => true, false],
   ['leave-settings', 'ตั้งค่าการลา', 'leave', (me) => has(me, 'hr'), false],
   // ----- ระบบสอนแทน (งานวิชาการ) -----

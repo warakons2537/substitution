@@ -14,12 +14,12 @@ t('ครูทั่วไป: ยื่นลา/ดูของตัวเ�
 t('ฝ่ายวิชาการ: จัดสอนแทนได้ แต่ไม่เห็นตรวจ/อนุญาตและตั้งค่าการลา', () => {
   const h = hashes(me(['academic']));
   for (const x of ['assist', 'requests', 'records', 'import', 'reports']) assert.ok(h.includes(x), x);
-  for (const x of ['approvals', 'leave-settings', 'users']) assert.ok(!h.includes(x), x);
+  for (const x of ['approvals', 'assist-leave', 'leave-settings', 'users']) assert.ok(!h.includes(x), x);
   assert.equal(landing(me(['academic']), 'sub'), 'requests');
 });
 t('งานบุคคล: ตรวจใบลา/ตั้งค่าการลา/รายงาน — ไม่จัดสอนแทน', () => {
   const h = hashes(me(['hr']));
-  for (const x of ['approvals', 'leaves', 'leave-settings', 'reports']) assert.ok(h.includes(x), x);
+  for (const x of ['approvals', 'assist-leave', 'leaves', 'leave-settings', 'reports']) assert.ok(h.includes(x), x);
   for (const x of ['assist', 'requests', 'records', 'import', 'users']) assert.ok(!h.includes(x), x);
   assert.equal(landing(me(['hr']), 'leave'), 'approvals');
 });
