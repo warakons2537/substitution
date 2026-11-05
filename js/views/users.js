@@ -21,7 +21,7 @@ export async function render(el, ctx) {
   const teachers = ctx.tt ? realTeachers(ctx.tt.data) : [];
   const printPill = (u) => (!u.role ? '' : u.print_name && u.position && u.phone ? pill('approved', 'ข้อมูลแบบพิมพ์ครบ')
     : pill('pending', `ยังไม่กรอก ${[!u.print_name && 'ชื่อ-สกุล', !u.position && 'ตำแหน่ง', !u.phone && 'เบอร์โทร'].filter(Boolean).join(' ')}`));
-  el.innerHTML = `<div class="wl-g">${hero('ผู้ใช้และสิทธิ์', 'รายชื่อบัญชีมาจากระบบ Login ร่วมกับ WL Admin · ผู้ขอลาต้องผูกกับชื่อครูในตารางสอน')}
+  el.innerHTML = `<div class="wl-g">${hero('ผู้ใช้และสิทธิ์', 'รายชื่อบัญชีมาจากระบบ Login ร่วมกับ WL Admin · ผู้ขอลาต้องผูกกับชื่อครูในตารางสอน · ผู้ดูแลกรอกชื่อ-สกุล/ตำแหน่งสำหรับพิมพ์แทนครูได้')}
     <div class="g-filters"><label>ค้นหา<input id="u-q" placeholder="ชื่อ อีเมล หรือชื่อครู"></label>
       <label>สิทธิ์<select id="u-r"><option value="*">ทั้งหมด</option><option value="">ไม่มีสิทธิ์</option><option value="teacher">ครู (ไม่มีหน้าที่เสริม)</option>${opts(Object.entries(DUTIES))}</select></label></div>
     <p class="g-sub" id="u-n"></p>
@@ -33,6 +33,10 @@ export async function render(el, ctx) {
         ${Object.entries(DUTIES).map(([k, t]) => `<label class="g-check"><input class="g-chk" type="checkbox" name="duty" value="${k}" ${noAcc(u)} ${(u.duties || []).includes(k) ? 'checked' : ''}> ${t}</label>`).join('')}</div>
       <div class="g-form"><label>ชื่อครู (ในตารางสอน)<select name="teacher" ${noAcc(u)}><option value="">—</option>${opts([...new Set([...(u.teacher_name ? [u.teacher_name] : []), ...teachers])], u.teacher_name || '')}</select></label>
         ${staffList.length ? `<label>บุคลากร (WL Academic)<select name="staff" ${noAcc(u)}><option value="">—</option>${opts(staffList.map((t) => [t.id, staffName(t)]), u.staff_id || (u.role ? guess(u.teacher_name) : ''))}</select></label>` : ''}</div>
+      <div class="g-form"><label>ชื่อ-นามสกุล (ใช้พิมพ์)<input name="print_name" maxlength="120" value="${esc(u.print_name || '')}" placeholder="เช่น นางสาวสมหญิง ใจดี" ${noAcc(u)}></label>
+        <label>ตำแหน่ง (ใบลา)<input name="position" maxlength="120" value="${esc(u.position || '')}" placeholder="เช่น ครูชำนาญการ" ${noAcc(u)}></label>
+        <label>ตำแหน่งย่อ (บันทึกการสอนแทน)<input name="position_short" maxlength="60" value="${esc(u.position_short || '')}" placeholder="เช่น ครู คศ.2" ${noAcc(u)}></label>
+        <label>เบอร์โทร<input name="phone" maxlength="40" value="${esc(u.phone || '')}" ${noAcc(u)}></label></div>
       <div class="g-actions"><button class="g-btn g-btn-sm" type="button" data-save ${noAcc(u)}>บันทึก</button></div></article>`).join('')}
     </div></div>`;
   const filter = () => {
@@ -49,12 +53,14 @@ export async function render(el, ctx) {
   $$('[data-save]', el).forEach((b) => b.addEventListener('click', async () => {
     const tr = b.closest('[data-u]'); const id = tr.dataset.u;
     const teacher = tr.querySelector('[name=teacher]').value;
+    const val = (n) => tr.querySelector(`[name=${n}]`).value.trim();
     const duties = [...tr.querySelectorAll('[name=duty]:checked')].map((c) => c.value);
     const member = tr.querySelector('[name=member]').checked || duties.length > 0;
     if (id === ctx.me.id && !duties.includes('admin') && !(await confirmBox('กำลังลดสิทธิ์ผู้ดูแลระบบของตัวเอง ยืนยัน?')) ) return;
     try {
       if (!member) await q(sb.from('sub_users').delete().eq('user_id', id));
-      else await q(sb.from('sub_users').upsert({ user_id: id, role: roleOf(duties), duties, teacher_name: teacher, staff_id: tr.querySelector('[name=staff]')?.value || null }));
+      else await q(sb.from('sub_users').upsert({ user_id: id, role: roleOf(duties), duties, teacher_name: teacher, staff_id: tr.querySelector('[name=staff]')?.value || null,
+        full_name: val('print_name'), position: val('position'), position_short: val('position_short'), phone: val('phone') }));
       tr.dataset.role = member ? (duties.length ? duties.join(' ') : 'teacher') : '';
       toast('บันทึกแล้ว');
     } catch (e) { toast(e.message, 'err'); }
