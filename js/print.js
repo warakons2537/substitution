@@ -60,7 +60,7 @@ function leavePage(req, me, s, history) {
       ${box(last && LEAVE[last.leave_type].key === 'maternity')} คลอดบุตร ครั้งล่าสุด เมื่อวันที่ ${last ? esc(dmy(last.date_from)) : dots(20)}
       ในระหว่างลาจะติดต่อข้าพเจ้าได้ที่ ${esc(req.contact || (me.phone ? `หมายเลขโทรศัพท์ ${me.phone}` : dots()))}</p>
     <div class="psign"><div>ขอแสดงความนับถือ</div><div class="pgap"></div>
-      <div>ลงชื่อ${dots(45)}</div><div>(${esc(me.full_name)})</div><div>ตำแหน่ง ${esc(me.position)}</div></div>
+      <div>ลงชื่อ${dots(45)}</div><div>(${esc(me.full_name)})</div><div>ตำแหน่ง ${esc(me.position_short || me.position)}</div></div>
     <div class="pcols"><div>
       <p class="pc"><b>สถิติการลาในปีงบประมาณ ${fy}</b></p>
       <table class="pgrid"><tr><th>ประเภทลา</th><th>ลามาแล้ว</th><th>ลาครั้งนี้</th><th>รวมเป็น</th></tr>
@@ -89,7 +89,7 @@ function subPage(date, recs, req, me, s, periods) {
       ${periods.map((p) => { const r = recs.find((x) => x.period === p);
         return `<tr><td class="pc">${p}</td><td>${esc(r?.subject || '')}</td><td class="pc">${esc(r?.grade || '')}</td>
           <td>${r ? esc(r.substitute_teacher ? short(r.substitute_teacher) : '-') : ''}</td><td></td><td>${esc(r?.note || '')}</td></tr>`; }).join('')}</table>
-    <div class="pcols psigns"><div><div>ลงชื่อ${dots(40)}</div><div>(${esc(me.full_name)})</div><div>${esc(me.position_short)}</div></div>
+    <div class="pcols psigns"><div><div>ลงชื่อ${dots(40)}</div><div>(${esc(me.full_name)})</div><div>${esc(me.position_short || me.position || '')}</div></div>
       <div><div>ลงชื่อ${dots(40)}</div><div>(${esc(s.academic_name || dots(35))})</div><div>${esc(s.academic_position || '')}</div></div></div>
     <div class="psign2 pc"><div>ลงชื่อ${dots(40)}</div><div>(${esc(s.director_name || dots(35))})</div><div>${esc(s.director_position || '')}</div></div>
   </section>`;
@@ -147,7 +147,7 @@ export async function printLeaveForm(leave, prof, history) {
     const s = await settings();
     const req = { ...leave, id: leave.id };
     const hist = history.map((h) => ({ ...h, request_id: h.id }));   // ใช้ id ของรายการลาแทน request_id
-    const me = { full_name: prof.full_name || leave.teacher_name, position: prof.position || '', phone: '' };
+    const me = { full_name: prof.full_name || leave.teacher_name, position: prof.position || prof.position_short || '', position_short: prof.position_short || '', phone: '' };
     await printHtml(leavePage(req, me, s, hist));
   } catch (e) { toast(e.message, 'err'); }
 }
