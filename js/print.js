@@ -139,3 +139,35 @@ export async function printSubNotes(groups) {
     await printHtml(groups.map((g) => subPage(g.date, g.recs, { leave_type: g.leave_type }, g.teacher, s, periods)).join(''));
   } catch (e) { toast(e.message, 'err'); }
 }
+
+/** งานบุคคลพิมพ์ใบลาแทนครู จากรายการในทะเบียนการลา (ป่วย/กิจ/คลอด) — prof = { full_name, position } ของครูที่ลา */
+export async function printLeaveForm(leave, prof, history) {
+  if (!LEAVE[leave.leave_type]) { toast('ประเภทนี้ไม่มีแบบใบลา (พิมพ์ได้เฉพาะลาป่วย/ลากิจ/ลาคลอด)', 'err'); return; }
+  try {
+    const s = await settings();
+    const req = { ...leave, id: leave.id };
+    const hist = history.map((h) => ({ ...h, request_id: h.id }));   // ใช้ id ของรายการลาแทน request_id
+    const me = { full_name: prof.full_name || leave.teacher_name, position: prof.position || '', phone: '' };
+    await printHtml(leavePage(req, me, s, hist));
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+/** งานบุคคลพิมพ์สรุปการลารายครู: rows = [{ type, count, used, quota, off }], list = รายการลาในปีงบประมาณ */
+export async function printLeaveSummary(teacher, prof, fy, rows, list) {
+  try {
+    const s = await settings();
+    const fmt = (n) => (Number.isInteger(+n) ? String(+n) : (+n).toFixed(1));
+    const st = { pending: 'รออนุญาต', approved: 'บันทึกแล้ว', rejected: 'ไม่อนุญาต' };
+    await printHtml(`<section class="a4"><div class="pc"><img src="img/school-logo.png" class="plogo" alt=""></div>
+      <h1 class="pc">สรุปการลา ปีงบประมาณ ${fy}</h1><p class="pc">โรงเรียน${esc(BRAND.school)}</p>
+      <p class="pc">ชื่อ ${esc(prof.full_name || teacher)} ${esc(prof.position_short || '')}</p>
+      <table class="pgrid"><tr><th>ประเภทการลา</th><th>ครั้ง</th><th>วันที่ลา</th><th>โควตา</th><th>คงเหลือ</th></tr>
+        ${rows.map((r) => `<tr><td>${esc(r.type)}${r.off ? ' (ไม่นับเป็นวันลา)' : ''}</td><td class="pc">${r.count}</td><td class="pc">${fmt(r.used)}</td>
+          <td class="pc">${r.quota == null ? 'ไม่จำกัด' : fmt(r.quota)}</td><td class="pc">${r.quota == null ? '-' : fmt(r.quota - r.used)}</td></tr>`).join('')}</table>
+      <p style="margin-top:8pt"><b>รายการลา</b></p>
+      <table class="pgrid"><tr><th>วันที่</th><th>ประเภท</th><th>วัน</th><th>เหตุผล</th><th>สถานะ</th></tr>
+        ${list.map((l) => `<tr><td>${l.date_from === l.date_to ? esc(dmy(l.date_from)) : `${esc(dmy(l.date_from))} – ${esc(dmy(l.date_to))}`}</td><td>${esc(l.leave_type)}</td>
+          <td class="pc">${fmt(l.days)}</td><td>${esc(l.reason || '')}</td><td>${esc(st[l.status] || l.status)}</td></tr>`).join('') || '<tr><td colspan="5" class="pc">ไม่มีรายการ</td></tr>'}</table>
+      <div class="psign2"><div>ลงชื่อ${dots(40)}</div><div>(${esc(s.personnel_name || dots(35))})</div><div>${esc(s.personnel_position || '')}</div></div></section>`);
+  } catch (e) { toast(e.message, 'err'); }
+}

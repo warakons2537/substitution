@@ -2,11 +2,11 @@
 import { $, $$, esc, opts, toast, todayISO, thDate, thDay, dateRange, dowIndex } from '../util.js';
 import { sb, q } from '../db.js';
 import { realTeachers } from '../timetable.js';
-import { loadRules, countDays, usage, fiscalYear, fmtDays, roundUsage, nonLeaveSet, roundNo } from '../leaves.js';
+import { loadRules, countDays, usage, fiscalYear, fiscalRange, fmtDays, roundUsage, nonLeaveSet, roundNo } from '../leaves.js';
 import { EVAL_LIMIT } from '../config.js';
 import { hero, pill } from '../gui.js';
 import { has } from '../perm.js';
-import { printSubNotes } from '../print.js';
+import { printSubNotes, printLeaveForm, printLeaveSummary } from '../print.js';
 
 export async function render(el, ctx) {
   const rules = await loadRules();
@@ -31,6 +31,7 @@ export async function render(el, ctx) {
       <label class="g-check"><input class="g-chk" type="checkbox" name="signed"> เซ็นเอกสารแล้ว</label></div></div></section>
     <section class="g-card"><div class="g-pad"><div id="al-prev"><p class="muted">เลือกครูและวันที่</p></div>
       <div class="g-actions"><button class="g-btn" type="button" id="al-save" disabled>บันทึกการลา</button></div></div></section>
+    <section class="g-card"><div class="g-card-h"><h3>การลาของครู (ปีงบประมาณ)</h3></div><div class="g-pad" id="al-hist"><p class="muted">เลือกครูและวันที่</p></div></section>
     <section class="g-card"><div class="g-card-h"><h3>การสอนแทนของช่วงนี้</h3></div><div class="g-pad" id="al-subs"><p class="muted">เลือกครูและวันที่</p></div></section></div>`;
 
   const f = (n) => $(`[name="${n}"]`, el);
@@ -49,6 +50,29 @@ export async function render(el, ctx) {
   };
 
   let profiles = null;
+  const profOf = async (teacher) => { profiles ||= await q(sb.rpc('sub_teacher_profiles')).catch(() => []); return profiles.find((p) => p.teacher_name === teacher) || {}; };
+  async function showHist(teacher, from) {
+    const box = $('#al-hist', el);
+    if (!teacher || !from) { box.innerHTML = '<p class="muted">เลือกครูและวันที่</p>'; return; }
+    const fy = fiscalYear(from); const r = fiscalRange(fy);
+    const list = mine.filter((l) => l.date_from >= r.from && l.date_from <= r.to && ['pending', 'approved'].includes(l.status));
+    const u = usage(list, fy);
+    const rows = rules.types.filter((t) => t.active || u[t.leave_type]).map((t) => ({ type: t.leave_type, count: u[t.leave_type]?.count || 0, used: u[t.leave_type]?.used || 0, quota: t.quota_days, off: off.has(t.leave_type) }));
+    box.innerHTML = list.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>วันที่</th><th>ประเภท</th><th class="c">วัน</th><th></th></tr></thead><tbody>
+      ${list.map((l) => `<tr><td class="nowrap">${esc(l.date_from === l.date_to ? thDate(l.date_from) : `${thDate(l.date_from)} – ${thDate(l.date_to)}`)}</td><td>${esc(l.leave_type)}</td><td class="c num">${fmtDays(l.days)}</td>
+        <td><button class="g-btn g-btn-line g-btn-sm" type="button" data-form="${l.id}">พิมพ์ใบลา</button></td></tr>`).join('')}</tbody></table></div>
+      <div class="g-actions"><button class="g-btn g-btn-line" type="button" id="al-sum">พิมพ์สรุปการลา ปีงบประมาณ ${fy}</button></div>`
+      : `<p class="g-empty">ยังไม่มีการลาของ ${esc(teacher)} ในปีงบประมาณ ${fy}</p>`;
+    $$('[data-form]', box).forEach((b) => b.addEventListener('click', async () => {
+      const l = list.find((x) => x.id === b.dataset.form);
+      const full = await q(sb.from('sub_leaves').select('*').eq('teacher_name', teacher)).catch(() => []);
+      printLeaveForm(full.find((x) => x.id === l.id) || l, await profOf(teacher), full);
+    }));
+    $('#al-sum', box)?.addEventListener('click', async () => {
+      const full = await q(sb.from('sub_leaves').select('*').eq('teacher_name', teacher).gte('date_from', r.from).lte('date_from', r.to).order('date_from')).catch(() => []);
+      printLeaveSummary(teacher, await profOf(teacher), fy, rows, full.filter((x) => x.status !== 'cancelled'));
+    });
+  }
   async function showSubs(teacher, from, to) {
     const box = $('#al-subs', el);
     if (!teacher || !from) { box.innerHTML = '<p class="muted">เลือกครูและวันที่</p>'; return; }
@@ -71,8 +95,7 @@ export async function render(el, ctx) {
       : `<p class="g-empty">ยังไม่มีการจัดสอนแทนของ ${esc(teacher)} ในช่วงนี้</p><div class="g-actions">${link}</div>`;
     $('#al-print', el)?.addEventListener('click', async () => {
       try {
-        profiles ||= await q(sb.rpc('sub_teacher_profiles'));
-        const pr = profiles.find((p) => p.teacher_name === teacher);
+        const pr = await profOf(teacher);
         await printSubNotes(groups.map((g) => ({ ...g, teacher: { full_name: pr?.full_name || teacher, position_short: pr?.position_short || '' } })));
       } catch (e) { toast(e.message, 'err'); }
     });
@@ -84,7 +107,7 @@ export async function render(el, ctx) {
     if (half || to < from) { to = from; f('to').value = from; }
     const box = $('#al-prev', el); const save = $('#al-save', el);
     save.disabled = true;
-    if (!teacher || !from) { box.innerHTML = '<p class="muted">เลือกครูและวันที่</p>'; showSubs('', ''); return; }
+    if (!teacher || !from) { box.innerHTML = '<p class="muted">เลือกครูและวันที่</p>'; showSubs('', ''); showHist('', ''); return; }
     await loadMine(teacher);
     if (f('teacher').value !== teacher) return;
     const dates = dateRange(from, to);
@@ -112,7 +135,7 @@ export async function render(el, ctx) {
       </tbody></table></div>`;
     save.disabled = !days || !!clash.length;
     save.dataset.days = days;
-    showSubs(teacher, from, to);
+    showSubs(teacher, from, to); showHist(teacher, from);
   }
 
   $$('.g-form input, .g-form select', el).forEach((x) => x.addEventListener('change', () => refresh()));
