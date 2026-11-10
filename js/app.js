@@ -2,7 +2,7 @@ import { fitHeroTitles } from './gui.js';
 import { $, $$, esc, toast } from './util.js';
 import { BRAND, VERSION } from './config.js';
 import { auth, loadMe, activeTimetable } from './db.js';
-import { pagesFor, modulesFor, landing, MODULES, dutyText } from './perm.js';
+import { pagesFor, groupsFor, tabsOf, dutyText } from './perm.js';
 import * as assist from './views/assist.js';
 import * as request from './views/request.js';
 import * as requests from './views/requests.js';
@@ -20,7 +20,7 @@ import * as approvals from './views/approvals.js';
 import * as assistleave from './views/assistleave.js';
 import * as mysubs from './views/mysubs.js';
 import { icon } from './icons.js';
-import { mountNav } from './navbar.js';
+import { mountNav, labelHtml } from './navbar.js';
 import { mountBell } from './notify.js';
 
 const root = $('#app');
@@ -32,14 +32,9 @@ const VIEWS = {
   summary: summary.render, reports: reports.render, import: imp.render, users: users.render, settings: setts.render, audit: audit.render,
   profile: profile.render,
 };
-const SIBLINGS = [
-  { name: 'ทางเข้า WL (ทุกแอป)', url: '../' },
-  { name: 'WL Admin (ปพ.)', url: '../pp/' },
-  { name: 'WL Scheduler (ตารางสอน)', url: '../planner/' },
-  { name: 'WL Academic (งานวิชาการ)', url: '../wl-academic/' },
-  { name: 'WL Draft (ร่างหนังสือ)', url: '../wl-draft/' },
-];
-const MOD_KEY = 'wlsub-mod';
+// แอปอื่นในเครือ เข้าผ่านหน้าทางเข้า WL ที่เดียว
+const SIBLINGS = [{ name: 'ทางเข้า WL (ทุกแอป)', url: '../' }];
+const TAB_KEY = 'wlsub-tab:';   // จำแท็บล่าสุดของแต่ละเมนู (กดเมนูเดิมแล้วกลับไปแท็บที่ใช้ล่าสุด)
 let navCtl = null; let bell = null;
 
 function loginPage(mode = 'in') {
@@ -80,7 +75,6 @@ function shell(me) {
     </aside><main class="main">
       <header class="topbar no-print"><div class="tb-title"><b id="tb-page">${esc(BRAND.name)}</b><small id="tt-line"></small></div>
         <div class="tb-clock" id="tb-clock" aria-hidden="true"></div><div class="tb-online" id="tb-online"></div>
-        <div class="modsw" id="modsw" role="tablist" aria-label="เลือกระบบ"></div>
         <div id="bell-root" class="bell-wrap"></div>
         <div class="tb-user" id="user-menu">
           <button type="button" class="tb-userbtn" aria-haspopup="true" aria-expanded="false" aria-label="เมนูผู้ใช้">
@@ -94,7 +88,7 @@ function shell(me) {
             <button type="button" id="logout" role="menuitem">${icon('logout')}<span>ออกจากระบบ</span></button>
           </div></div>
         <button type="button" class="tb-logout" id="logout-btn" aria-label="ออกจากระบบ" title="ออกจากระบบ">${icon('logout')}</button></header>
-      <div class="main-pad"><div id="view"></div></div>
+      <div class="main-pad"><nav class="ptabs no-print" id="ptabs" aria-label="หน้าย่อย"></nav><div id="view"></div></div>
       <footer class="app-ver no-print">${esc(BRAND.name)} เวอร์ชัน ${VERSION}</footer></main></div><div id="bnav-root"></div>`;
   bell?.destroy();
   bell = mountBell($('#bell-root'), me);
@@ -119,22 +113,28 @@ function shell(me) {
 }
 let clockTimer = null;
 
-/** วาดเมนูซ้าย/แถบล่าง/แถบสลับระบบ ตามระบบ (โมดูล) ปัจจุบัน */
-function drawNav(me, mod, page) {
-  const pages = pagesFor(me);
-  // เมนูของระบบปัจจุบัน + หน้าผู้ดูแลระบบ (แสดงในทุกระบบสำหรับผู้ดูแล จะได้หาเจอเสมอ) + ข้อมูลฉัน
-  const items = pages.filter((p) => p[0] === 'home' || p[2] === mod || p[0] === 'profile' || p[2] === 'admin');
-  $('#side-nav').innerHTML = items.map(([h, t]) => `<a href="#${h}" data-v="${h}">${icon(h)}<span>${esc(t)}</span></a>`).join('')
-    + `<div class="sec">แอปในเครือ</div>${SIBLINGS.map((x) => `<a href="${esc(x.url)}" class="ext">${icon('link')}<span>${esc(x.name)}</span></a>`).join('')}`;
-  const mods = modulesFor(me);
-  $('#modsw').innerHTML = mods.length > 1 ? mods.map((m) => `<a href="#${landing(me, m)}" role="tab" class="${m === mod ? 'on' : ''}" aria-selected="${m === mod}">
-    <b>${esc(MODULES[m].name)}</b>${MODULES[m].sub ? `<small>${esc(MODULES[m].sub)}</small>` : ''}</a>`).join('') : '';
+const lastTab = (g) => { try { return sessionStorage.getItem(TAB_KEY + g) || ''; } catch { return ''; } };
+const saveTab = (g, h) => { try { sessionStorage.setItem(TAB_KEY + g, h); } catch { /* */ } };
+
+/** วาดเมนูหลัก (ซ้าย/แถบล่าง) ตามงาน + แท็บหน้าย่อยของเมนูปัจจุบัน */
+function drawNav(me, group, page) {
+  // เมนูชี้ไปแท็บล่าสุดที่ใช้ในกลุ่มนั้น (ครั้งแรก = แท็บแรก)
+  const groups = groupsFor(me).map(([g, t, ic]) => {
+    const tabs = tabsOf(me, g).map((p) => p[0]);
+    return { g, t, ic, href: tabs.includes(lastTab(g)) ? lastTab(g) : tabs[0] };
+  });
+  $('#side-nav').innerHTML = groups.map((x) => `<a href="#${x.href}" data-v="${x.g}">${icon(x.ic)}<span>${labelHtml(x.t)}</span></a>`).join('')
+    + `<div class="sec"></div>${SIBLINGS.map((x) => `<a href="${esc(x.url)}" class="ext">${icon('link')}<span>${esc(x.name)}</span></a>`).join('')}`;
+  const tabs = tabsOf(me, group);
+  $('#ptabs').innerHTML = tabs.length > 1 ? tabs.map(([h, t]) => `<a href="#${h}" class="${h === page ? 'on' : ''}"${h === page ? ' aria-current="page"' : ''}>${esc(t)}</a>`).join('') : '';
   const fresh = document.createElement('div'); fresh.id = 'bnav-root';
   $('#bnav-root').replaceWith(fresh);
-  const hashes = items.map((p) => p[0]);
-  navCtl = mountNav(fresh, { labels: Object.fromEntries(items.map(([h, t]) => [h, t])), bar: hashes.slice(0, 4), more: hashes.slice(4), ext: SIBLINGS });
-  navCtl.setView(page);
-  $$('#side-nav a[data-v]').forEach((a) => a.classList.toggle('on', a.dataset.v === page));
+  const keys = groups.map((x) => x.g);
+  navCtl = mountNav(fresh, { labels: Object.fromEntries(groups.map((x) => [x.g, x.t])), icons: Object.fromEntries(groups.map((x) => [x.g, x.ic])),
+    hrefs: Object.fromEntries(groups.map((x) => [x.g, x.href])), bar: keys.length <= 5 ? keys : keys.slice(0, 4), more: keys.length <= 5 ? [] : keys.slice(4) });   // มือถือ: ทางเข้า WL อยู่ในเมนูผู้ใช้มุมขวาบนแล้ว
+  navCtl.setView(group);
+  $('#ptabs a.on')?.scrollIntoView({ inline: 'center', block: 'nearest' });   // มือถือ: แท็บที่เลือกไม่หลุดขอบ
+  $$('#side-nav a[data-v]').forEach((a) => a.classList.toggle('on', a.dataset.v === group));
 }
 
 let ctx = null;
@@ -144,13 +144,8 @@ async function route() {
   const pages = pagesFor(me);
   const h = location.hash.slice(1).split('?')[0];
   const item = pages.find((p) => p[0] === h) || pages[0];
-  let mod = item[2];
-  if (mod === 'common') {
-    let last = ''; try { last = sessionStorage.getItem(MOD_KEY) || ''; } catch { /* */ }
-    const mods = modulesFor(me);
-    mod = mods.includes(last) ? last : mods[0] || 'leave';
-  } else { try { sessionStorage.setItem(MOD_KEY, mod); } catch { /* */ } }
-  drawNav(me, mod, item[0]);
+  saveTab(item[2], item[0]);
+  drawNav(me, item[2], item[0]);
   $('#tb-page').textContent = item[0] === 'home' ? BRAND.name : item[1];
   const view = $('#view');
   $('#tt-line').textContent = ctx.tt ? `ตารางสอน: ปีการศึกษา ${ctx.tt.academic_year} ภาคเรียนที่ ${ctx.tt.term} · ${ctx.tt.name}` : 'ยังไม่มีตารางสอน';

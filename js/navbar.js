@@ -8,16 +8,17 @@ let cur = null;
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cur?.close(); });
 
 // bar = เมนูบนแถบล่าง · more = เมนูในแผงเพิ่มเติม · ext = ลิงก์แอปในเครือ [{name,url}]
-export function mountNav(host, { labels, bar, more, ext = [] }) {
+// icons/hrefs = ไอคอน/ลิงก์ของแต่ละเมนู (ไม่ใส่ = ใช้ชื่อเมนูเป็น hash และไอคอน)
+export function mountNav(host, { labels, bar, more, ext = [], icons = {}, hrefs = {} }) {
   let view = 'home', open = false;
-  const link = (v) => `<a href="#${v}" data-v="${v}">${icon(v)}<span>${labelHtml(labels[v])}</span></a>`;
+  const link = (v) => `<a href="#${hrefs[v] || v}" data-v="${v}">${icon(icons[v] || v)}<span>${labelHtml(labels[v])}</span></a>`;
   const extLink = (s) => `<a href="${esc(s.url)}">${icon('link')}<span>${esc(s.name)}</span></a>`;
 
   function draw() {
     host.innerHTML = `
       <nav class="bnav no-print" aria-label="เมนูหลัก">
         ${bar.map(link).join('')}
-        <button type="button" data-act="more" aria-haspopup="dialog" aria-expanded="${open}">${icon('more')}<span>เพิ่มเติม</span></button>
+        ${more.length || ext.length ? `<button type="button" data-act="more" aria-haspopup="dialog" aria-expanded="${open}">${icon('more')}<span>เพิ่มเติม</span></button>` : ''}
       </nav>
       <div class="sheet-wrap no-print"${open ? '' : ' hidden'}>
         <div class="sheet" role="dialog" aria-modal="true" aria-label="เมนูทั้งหมด"><div class="sheet-grip"></div>
