@@ -145,7 +145,8 @@ export function mountBell(host, me) {
     if (e.target.closest('[data-dev]')) { const st = await enableDevice(); if (st === 'granted') await syncPush(); draw(); if (st === 'granted') showDevice('เปิดแจ้งเตือนแล้ว', 'ระบบจะเตือนเมื่อคุณมีคาบสอนแทนตามเวลาที่โรงเรียนกำหนด', 'mysubs', 'wlsub-hello'); return; }
     if (e.target.closest('.bell')) { open = !open; draw(); }
   });
-  const away = (e) => { if (open && !host.contains(e.target)) { open = false; draw(); } };
+  // ใช้ composedPath: หลังกดกระดิ่ง แผงถูกวาดใหม่ ปุ่มเดิม (e.target) หลุดจากหน้าไปแล้ว — host.contains(e.target) จะเป็น false แล้วปิดแผงทันที
+  const away = (e) => { if (open && !e.composedPath().includes(host)) { open = false; draw(); } };
   const esc2 = (e) => { if (e.key === 'Escape' && open) { open = false; draw(); } };
   const wake = () => { if (document.visibilityState === 'visible') load(); };   // กลับมาที่แอป → เช็กทันที
   document.addEventListener('click', away); document.addEventListener('keydown', esc2); document.addEventListener('visibilitychange', wake);

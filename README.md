@@ -225,3 +225,6 @@
 - เปลี่ยนกุญแจ: `node tools/vapid.mjs --force` → ใส่ Secrets ชุดใหม่ + `sub_push_setup` ใหม่ → อัปโหลดแอป (เครื่องเดิมสมัครใหม่เองเมื่อเปิดแอป)
 - ทดสอบแล้ว: การเข้ารหัส/ลายเซ็นของ `sub-push` เทียบกับไลบรารี `http_ece`/`web-push` และ SQL รอบ 8 บน Postgres จำลอง · **ยังไม่ได้ทดสอบ:** การ deploy จริงบน Supabase และการรับบนอุปกรณ์จริง
 - ไฟล์ใหม่: `supabase/functions/sub-push/index.ts`, `tools/vapid.mjs`, `.gitignore` · ไฟล์ที่เปลี่ยน: `supabase/schema.sql`, `js/{app,config,notify}.js`, `js/views/remind.js`, `index.html`
+
+## อัปเดต 2569.11.11-6 (กระดิ่งกดแล้วไม่เปิด)
+- แก้แผงกระดิ่งเปิดแล้วปิดเองทันที (ตัวตรวจ "กดนอกแผง" เข้าใจผิดเพราะปุ่มถูกวาดใหม่ระหว่างการกด) — เป็นมาตั้งแต่มีกระดิ่ง · ไฟล์ที่เปลี่ยน: `js/notify.js`
