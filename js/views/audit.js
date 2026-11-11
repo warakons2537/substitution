@@ -14,7 +14,7 @@ const F = { sub_date: 'วันที่', period: 'คาบ', absent_teacher:
   decision_note: 'หมายเหตุการพิจารณา', role: 'สิทธิ์', full_name: 'ชื่อ-สกุล', position: 'ตำแหน่ง',
   position_short: 'ตำแหน่ง (บันทึก)', phone: 'เบอร์โทร', academic_year: 'ปีการศึกษา', term: 'ภาคเรียน',
   name: 'ชื่อ', is_active: 'ใช้งาน', district: 'อำเภอ', area_office: 'เขตพื้นที่', personnel_name: 'หัวหน้าบุคคล',
-  personnel_position: 'ตำแหน่งหัวหน้าบุคคล', academic_name: 'หัวหน้าวิชาการ', academic_position: 'ตำแหน่งหัวหน้าวิชาการ',
+  personnel_position: 'ตำแหน่งหัวหน้าบุคคล', academic_name: 'ผู้ลงนามบันทึกการสอนแทน', academic_position: 'ตำแหน่งผู้ลงนามบันทึกการสอนแทน',
   director_name: 'ผู้อำนวยการ', director_position: 'ตำแหน่งผู้อำนวยการ' };
 const SKIP = new Set(['id', 'user_id', 'created_at', 'updated_at', 'created_by', 'requested_by', 'decided_by', 'imported_by', 'request_id']);
 

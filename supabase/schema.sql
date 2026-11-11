@@ -88,7 +88,7 @@ create table if not exists public.sub_settings (
   personnel_name     text not null default '',
   personnel_position text not null default 'หัวหน้าฝ่ายบริหารงานบุคคล',
   academic_name      text not null default '',
-  academic_position  text not null default 'หัวหน้าบริหารงานวิชาการ',
+  academic_position  text not null default 'งานพัฒนากระบวนการเรียนรู้',
   director_name      text not null default '',
   director_position  text not null default 'ผู้อำนวยการโรงเรียนบ้านวังลึก(ยุวนาฏชนูทิศ)',
   updated_at         timestamptz not null default now()
