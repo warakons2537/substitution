@@ -44,7 +44,8 @@ function leavePage(req, me, s, history) {
   });
   const total = rows.flatMap((r) => r.all);
   const n = dayCount(reqD);
-  return `<section class="a4">
+  const lk = last && LEAVE[last.leave_type].key;
+  return `<section class="a4 plv">
     <h1 class="pc">แบบใบลาป่วย ลากิจส่วนตัว ลาคลอดบุตร</h1>
     <p class="pr">เขียนที่ โรงเรียน${esc(school)}</p>
     <p class="pr">วันที่ ${esc(dmy(String(req.created_at || '').slice(0, 10) || req.date_from))}</p>
@@ -56,23 +57,41 @@ function leavePage(req, me, s, history) {
       <td rowspan="3" class="preason">เนื่องจาก ${esc(req.reason || dots())}</td></tr>
       <tr><td>${box(L.key === 'personal')} กิจส่วนตัว</td></tr><tr><td>${box(L.key === 'maternity')} ลาคลอด</td></tr></table>
     <p class="pi">ตั้งแต่ ${esc(fullDay(req.date_from))} ถึง${esc(fullDay(req.date_to))} มีกำหนด ${n} วัน</p>
-    <p class="pi">ข้าพเจ้าได้ลา ${box(last && LEAVE[last.leave_type].key === 'sick')} ป่วย ${box(last && LEAVE[last.leave_type].key === 'personal')} กิจส่วนตัว
-      ${box(last && LEAVE[last.leave_type].key === 'maternity')} คลอดบุตร ครั้งล่าสุด เมื่อวันที่ ${last ? esc(dmy(last.date_from)) : dots(20)}
-      ในระหว่างลาจะติดต่อข้าพเจ้าได้ที่ ${esc(req.contact || (me.phone ? `หมายเลขโทรศัพท์ ${me.phone}` : dots()))}</p>
-    <div class="psign"><div>ขอแสดงความนับถือ</div><div class="pgap"></div>
-      <div>ลงชื่อ${dots(45)}</div><div>(${esc(me.full_name)})</div><div>ตำแหน่ง ${esc(me.position_short || me.position)}</div></div>
-    <div class="pcols"><div>
+    <p class="pi">ข้าพเจ้าได้ลา ${box(lk === 'sick')} ป่วย ${box(lk === 'personal')} กิจส่วนตัว ${box(lk === 'maternity')} คลอดบุตร
+      ครั้งสุดท้ายตั้งแต่วันที่ ${last ? esc(dmy(last.date_from)) : dots(25)} ถึงวันที่ ${last ? esc(dmy(last.date_to)) : dots(25)}
+      มีกำหนด ${last ? dayCount(last) : dots(8)} วัน</p>
+    <p class="pi">ในระหว่างลาจะติดต่อข้าพเจ้าได้ที่ ${esc(req.contact || (me.phone ? `หมายเลขโทรศัพท์ ${me.phone}` : `หมายเลขโทรศัพท์ ${dots()}`))}</p>
+    <div class="pcols plv-row"><div class="pframe">
+        <div>กรณีเป็นเวรประจำวันในวันที่ลา</div><div>แลกเปลี่ยนเวรกับ${dots(40)}</div><div>ครูเวรประจำวัน${dots(42)}</div>
+        <div class="pc pgap-s">ลงชื่อ${dots(30)}(ผู้รับแลกเปลี่ยนเวร)</div><div class="pc">(${dots(45)})</div>
+      </div><div class="pc">
+        <div>ขอแสดงความนับถือ</div><div class="pgap"></div>
+        <div>ลงชื่อ${dots(45)}</div><div>(${esc(me.full_name)})</div><div>ตำแหน่ง ${esc(me.position_short || me.position)}</div>
+      </div></div>
+    <div class="pcols plv-row"><div class="pframe">
+        <div><b>เอกสารแนบประกอบการลา</b> (สำหรับผู้ตรวจสอบ)</div>
+        <div>${box(false)} บันทึกการสอนแทน</div><div>${box(false)} เอกสารประกอบเหตุผลในการลา</div>
+        <div class="pind">${box(false)} ใบรับรองแพทย์</div><div class="pind">${box(false)} ใบนัดจากแพทย์</div>
+        <div class="pind">${box(false)} อื่นๆ ระบุ${dots(30)}</div>
+      </div><div class="pc">
+        <div><b><u>ความเห็นของหัวหน้าฝ่ายบริหารงานบุคคล</u></b></div><div>${dots(60)}</div><div class="pgap"></div>
+        <div>ลงชื่อ${dots(40)}(ผู้ตรวจสอบ)</div><div>(${esc(s.personnel_name || dots(35))})</div>
+        <div>ตำแหน่ง ${esc(s.personnel_position || '')}</div><div>วันที่ ${dots(6)} เดือน ${dots(16)} พ.ศ. ${dots(8)}</div>
+      </div></div>
+    <div class="pcols plv-row"><div>
       <p class="pc"><b>สถิติการลาในปีงบประมาณ ${fy}</b></p>
       <table class="pgrid"><tr><th>ประเภทลา</th><th>ลามาแล้ว</th><th>ลาครั้งนี้</th><th>รวมเป็น</th></tr>
         ${rows.map((r) => `<tr><td>${r.t.label}</td><td>${cell(r.before)}</td><td>${cell(r.now)}</td><td>${cell(r.all)}</td></tr>`).join('')}
         <tr><td colspan="3" class="pc">รวม</td><td>${cell(total)}</td></tr></table>
-      <div class="psign2"><div>ลงชื่อ${dots(35)}(ผู้ตรวจสอบ)</div><div>(${esc(s.personnel_name || dots(35))})</div>
-        <div>ตำแหน่ง ${esc(s.personnel_position || '')}</div><div>วันที่ ${dots(6)} เดือน ${dots(16)} พ.ศ. ${dots(8)}</div></div>
-    </div><div>
-      <p><b><u>ความเห็นของผู้บังคับบัญชา</u></b></p>
-      <p>${box(false)} อนุญาต</p><p>${box(false)} ไม่อนุญาต เนื่องจาก${dots(20)}</p><p>${dots(50)}</p>
-      <div class="psign2"><div>ลงชื่อ${dots(40)}</div><div>(${esc(s.director_name || dots(35))})</div><div>${esc(s.director_position || '')}</div></div>
-    </div></div></section>`;
+    </div><div class="pc">
+      <div><b><u>ความเห็นของผู้บังคับบัญชา</u></b></div>
+      <div class="pl">${box(false)} อนุญาต</div><div class="pl">${box(false)} ไม่อนุญาต เนื่องจาก${dots(30)}</div><div class="pgap"></div>
+      <div>ลงชื่อ${dots(45)}</div><div>(${esc(s.director_name || dots(35))})</div><div>ตำแหน่ง ${esc(s.director_position || '')}</div>
+      <div>วันที่ ${dots(6)} เดือน ${dots(16)} พ.ศ. ${dots(8)}</div>
+    </div></div>
+    <table class="pnote"><tr><td><b>หมายเหตุ</b></td><td>1. ลากิจและลาป่วยแบบมีใบนัดให้ลาล่วงหน้าก่อน 3 วันทำการ</td></tr>
+      <tr><td></td><td>2. จัดเตรียมเอกสารประกอบการลาให้แล้วเสร็จครบถ้วนก่อนส่งใบลามาที่งานบุคคล</td></tr></table>
+  </section>`;
 }
 
 function subPage(date, recs, req, me, s, periods) {
@@ -82,9 +101,9 @@ function subPage(date, recs, req, me, s, periods) {
     <div class="pc"><img src="img/school-logo.png" class="plogo" alt=""></div>
     <h1 class="pc">บันทึกการสอนแทน</h1><p class="pc">โรงเรียน${esc(BRAND.school)}</p>
     <p class="pc">${esc(fullDay(date, ' '))}</p>
-    <p class="pc">ชื่อ ครูประจำวิชา ${esc(me.full_name)}</p>
+    <p class="pc">ชื่อ ${esc(me.full_name)} ครูประจำวิชา ${dots(20)}</p>
     <p class="ptypes"><span>(${t === 'ลาป่วย' ? '…✓…' : dots(8)}) ลาป่วย</span><span>(${t === 'ลากิจ' ? '…✓…' : dots(8)}) ลากิจ</span>
-      <span>(${t === 'ไปราชการ' ? '…✓…' : dots(8)}) ไปราชการ</span></p>
+      <span>(${t === 'ไปราชการ' ? '…✓…' : dots(8)}) ไปราชการ ที่ ${t === 'ไปราชการ' && req.reason ? esc(req.reason) : dots(30)}</span></p>
     <table class="pgrid ptt"><tr><th>ชั่วโมงที่</th><th>วิชา</th><th>ชั้น</th><th>ผู้สอนแทน</th><th>รับทราบ</th><th>หมายเหตุ</th></tr>
       ${periods.map((p) => { const r = recs.find((x) => x.period === p);
         return `<tr><td class="pc">${p}</td><td>${esc(r?.subject || '')}</td><td class="pc">${esc(r?.grade || '')}</td>

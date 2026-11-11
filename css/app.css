@@ -271,6 +271,18 @@ input[type=checkbox], input[type=radio] { accent-color: var(--pen); width: 16px;
 #print-root .plogo { width: 32mm; height: auto; }
 #print-root .ptypes { display: flex; justify-content: space-between; margin: 8pt 0; }
 #print-root .ptt td { height: 26pt; }
+/* ใบลา (แบบใหม่ ยาวขึ้น) — บีบให้พอดี 1 แผ่น */
+#print-root .a4.plv { padding: 10mm 15mm 8mm 22mm; font-size: 16pt; line-height: 1.17; }
+#print-root .plv h1 { font-size: 17pt; margin-bottom: 2pt; }
+#print-root .plv .pgrid th, #print-root .plv .pgrid td { font-size: 16pt; padding: 0 4pt; }
+#print-root .plv-row { margin-top: 5pt; align-items: start; }
+#print-root .pframe { border: 1px solid #000; padding: 3pt 6pt; }
+#print-root .pframe .pind { padding-left: 1.6em; }
+#print-root .plv .pgap { height: 14pt; }
+#print-root .pgap-s { margin-top: 8pt; }
+#print-root .plv .pl { text-align: left; padding-left: 1em; }
+#print-root .pnote { margin-top: 6pt; border-collapse: collapse; font-size: 14pt; }
+#print-root .pnote td { padding: 0 6pt 0 0; vertical-align: top; }
 #print-root .psigns { margin-top: 22pt; text-align: center; }
 /* รายงานสรุป */
 #print-root .pgrid.prep th, #print-root .pgrid.prep td { font-size: 14pt; padding: 0 4pt; }

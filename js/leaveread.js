@@ -99,7 +99,7 @@ export function parseLeave(raw, teachers = []) {
   r.teacher = matchTeacher(r.name, teachers);
 
   r.reason = grab(flat, /เนื่องจาก\s*(.{1,200}?)\s*(?:ตั้งแต่|ในวันที่|ระหว่างวันที่|มีกำหนด|$)/);
-  r.contact = grab(flat, /ติดต่อ(?:ข้าพเจ้า)?ได้ที่\s*(.{1,150}?)\s*(?:ขอแสดงความนับถือ|ลงชื่อ|จึงเรียนมา|$)/);
+  r.contact = grab(flat, /ติดต่อ(?:ข้าพเจ้า)?ได้ที่\s*(.{1,150}?)\s*(?:กรณีเป็นเวร|ขอแสดงความนับถือ|ลงชื่อ|จึงเรียนมา|$)/);
 
   // วันที่ลา: ช่วงหลัง "ตั้งแต่/ระหว่างวันที่/ในวันที่" ถึง "มีกำหนด"
   const created = datesIn(flat.slice(0, 200), new Date().getFullYear())[0];
