@@ -9,7 +9,10 @@ export const ICON = {
 };
 // ป้ายสถานะ: สีคงที่ + ไอคอนเสมอ (st = pending|approved|rejected|cancelled)
 export const pill = (st, label, title = '') => `<span class="g-pill g-${st}"${title ? ` title="${esc(title)}"` : ''}>${ICON[st] || ''}<span>${esc(label)}</span></span>`;
-export const hero = (title, sub, action = '') => `<header class="g-hero"><div class="g-logo"><span class="g-mark" aria-hidden="true"><img src="img/logo-192.png" alt=""></span><span class="g-brand">WL ระบบสอนแทน</span></div><div class="g-hero-text">
+// หัวหน้าย่อยแบบกะทัดรัด (ไม่มีโลโก้ — โลโก้อยู่ที่ rail/หน้าแรกแล้ว) ให้เนื้อหาขึ้นมาอยู่บนจอมากขึ้น · หน้าแรกใช้ฮีโร่เต็ม (heroFull)
+export const hero = (title, sub, action = '') => `<header class="g-hero g-hero-sm"><div class="g-hero-text">
+  <h1>${esc(title)}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${action}</header>`;
+export const heroFull = (title, sub, action = '') => `<header class="g-hero"><div class="g-logo"><span class="g-mark" aria-hidden="true"><img src="img/logo-192.png" alt=""></span><span class="g-brand">WL ระบบสอนแทน</span></div><div class="g-hero-text">
   <h1>${esc(title)}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${action}</header>`;
 
 // ลดขนาดชื่อเรื่องในฮีโร่ตามความกว้างจอ ให้อยู่บรรทัดเดียว (ไม่ลดต่ำกว่า 18px)

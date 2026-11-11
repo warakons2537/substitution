@@ -16,8 +16,8 @@ export const GROUPS = [
   ['mysubs', 'สอนแทน​ของฉัน', 'mysubs'],
   ['leave-admin', 'จัดการ​ใบลา', 'approvals'],
   ['sub-admin', 'จัด​สอนแทน', 'assist'],
-  ['books', 'ทะเบียน​และรายงาน', 'reports'],
-  ['setup', 'ตั้งค่า', 'settings'],
+  ['books', 'ทะเบียน​และรายงาน', 'books'],
+  ['setup', 'ตั้งค่า', 'setup'],
 ];
 
 /**
@@ -41,6 +41,7 @@ export const PAGES = [
   ['summary', 'สรุปรายครู', 'books', () => true, false],
   ['reports', 'รายงาน/พิมพ์', 'books', (me) => has(me, 'academic') || has(me, 'hr') || has(me, 'director'), true],
   ['import', 'นำเข้าตารางสอน', 'setup', (me) => has(me, 'academic'), false],
+  ['remind', 'เวลาแจ้งเตือน', 'setup', (me) => has(me, 'academic'), false],
   ['users', 'ผู้ใช้และสิทธิ์', 'setup', (me) => has(me, 'admin'), false],
   ['settings', 'แบบพิมพ์', 'setup', (me) => has(me, 'admin'), false],
   ['audit', 'ประวัติใช้งาน', 'setup', (me) => has(me, 'admin'), false],

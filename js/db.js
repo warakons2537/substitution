@@ -49,6 +49,12 @@ export async function rankData() {
 export async function settings() {
   return (await q(sb.from('sub_settings').select('*').eq('id', 1)))[0] || {};
 }
+// ค่าตั้งค่าที่ใช้แสดงผลทั่วไป (เวลาเริ่มคาบ) — จำไว้ 5 นาที ไม่ดึงซ้ำทุกหน้า
+let _set = null; let _setAt = 0;
+export const settingsCached = () => { if (!_set || Date.now() - _setAt > 300000) { _setAt = Date.now(); _set = settings().catch(() => ({})); } return _set; };
+export const clearSettings = () => { _set = null; };
+/** เวลาเริ่มคาบ 'HH:MM' (ว่าง = ยังไม่ได้ตั้ง) */
+export const periodTime = (s, p) => String((s?.period_times || [])[p - 1] || '').slice(0, 5);
 
 /** คอลัมน์ของ sub_requests ที่อ่านได้ (เหตุผล/ที่ติดต่ออยู่ในทะเบียนการลา ฝ่ายวิชาการอ่านไม่ได้) */
 export const REQ_COLS = 'id,teacher_name,date_from,date_to,periods,leave_type,status,requested_by,decided_by,decided_at,decision_note,created_at';

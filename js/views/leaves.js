@@ -61,7 +61,7 @@ export async function render(el, ctx) {
   const gpill = (st, t) => `<span class="g-pill g-${st}">${ICON[st] || ''}<span>${t}</span></span>`;
   const chips = [['', 'ทั้งหมด', all.length], ...types.map((t) => [t.leave_type, t.leave_type, all.filter((l) => l.leave_type === t.leave_type).length])];
   el.innerHTML = `<div class="wl-g">
-    <header class="g-hero"><div class="g-logo"><span class="g-mark" aria-hidden="true"><img src="img/logo-192.png" alt=""></span><span class="g-brand">WL ระบบสอนแทน</span></div><div class="g-hero-text"><div class="g-eyebrow">ระบบลา</div>
+    <header class="g-hero g-hero-sm"><div class="g-hero-text">
       <h1>ทะเบียนการลา</h1><p>ปีงบประมาณ ${fy} · ${esc(thDate(from))} – ${esc(thDate(to))}</p></div>
       ${hr || me.teacher ? '<button class="g-btn" id="lv-add" type="button">+ บันทึกการลา</button>' : ''}</header>
     <div class="g-filters">

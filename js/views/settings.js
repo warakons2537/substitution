@@ -1,6 +1,6 @@
 // ผู้ดูแลระบบ: ตั้งค่าแบบพิมพ์ (ผู้ลงนาม / สังกัด)
 import { $, $$, esc, toast, thDate, confirmBox } from '../util.js';
-import { sb, q, settings } from '../db.js';
+import { sb, q, settings, clearSettings } from '../db.js';
 import { loadRules, fmtDays } from '../leaves.js';
 import { hero } from '../gui.js';
 
@@ -51,11 +51,14 @@ async function printForm(el) {
   const s = await settings();
   el.innerHTML = `<section class="g-card"><div class="g-pad"><form id="s-form" class="g-form">
     ${FIELDS.map(([k, l, ph]) => `<label class="span2">${l}<input name="${k}" value="${esc(s[k] || '')}" placeholder="${esc(ph)}"></label>`).join('')}
+    ${'thai_digits' in s ? `<div class="g-checks" style="grid-column:1/-1"><label class="g-check"><input class="g-chk" type="checkbox" name="thai_digits" ${s.thai_digits ? 'checked' : ''}> ใช้เลขไทยในแบบพิมพ์ (๑ ๒ ๓)</label>
+      <label class="g-check"><input class="g-chk" type="checkbox" name="print_footer" ${s.print_footer ? 'checked' : ''}> แสดงบรรทัดอ้างอิงท้ายกระดาษ (พิมพ์จากระบบ · วันเวลา)</label></div>` : ''}
     <div class="g-actions"><button class="g-btn" type="submit">บันทึก</button></div></form></div></section>`;
   $('#s-form', el).addEventListener('submit', async (e) => {
     e.preventDefault();
-    const v = Object.fromEntries([...new Map([...new FormData(e.target).entries()].map(([k, x]) => [k, x.trim()])).entries()]);
-    try { await q(sb.from('sub_settings').update(v).eq('id', 1)); toast('บันทึกแล้ว'); } catch (err) { toast(err.message, 'err'); }
+    const v = Object.fromEntries(FIELDS.map(([k]) => [k, e.target[k].value.trim()]));
+    if (e.target.thai_digits) { v.thai_digits = e.target.thai_digits.checked; v.print_footer = e.target.print_footer.checked; }   // มีเมื่อรัน SQL รอบ 7 แล้ว
+    try { await q(sb.from('sub_settings').update(v).eq('id', 1)); clearSettings(); toast('บันทึกแล้ว'); } catch (err) { toast(err.message, 'err'); }
   });
 }
 

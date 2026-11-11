@@ -9,12 +9,12 @@ let n = 0; const t = (name, fn) => { fn(); n += 1; console.log('✓', name); };
 t('ครูทั่วไป: ยื่นลา/ดูของตัวเอง/สอนแทนของฉัน — ไม่เห็นหน้าจัดการ', () => {
   const h = hashes(me([]));
   for (const x of ['home', 'request', 'mine', 'leaves', 'mysubs', 'summary', 'profile']) assert.ok(h.includes(x), x);
-  for (const x of ['approvals', 'leave-settings', 'assist', 'requests', 'records', 'import', 'reports', 'users', 'settings', 'audit']) assert.ok(!h.includes(x), x);
+  for (const x of ['approvals', 'leave-settings', 'assist', 'requests', 'records', 'import', 'remind', 'reports', 'users', 'settings', 'audit']) assert.ok(!h.includes(x), x);
   assert.deepEqual(groups(me([])), ['home', 'leave', 'mysubs', 'books']);
 });
 t('ฝ่ายวิชาการ: จัดสอนแทนได้ แต่ไม่เห็นตรวจ/อนุญาตและตั้งค่าการลา', () => {
   const h = hashes(me(['academic']));
-  for (const x of ['assist', 'requests', 'records', 'import', 'reports']) assert.ok(h.includes(x), x);
+  for (const x of ['assist', 'requests', 'records', 'import', 'remind', 'reports']) assert.ok(h.includes(x), x);
   for (const x of ['approvals', 'assist-leave', 'leave-settings', 'users']) assert.ok(!h.includes(x), x);
   assert.equal(tabsOf(me(['academic']), 'sub-admin')[0][0], 'requests');
 });
@@ -49,4 +49,8 @@ t('roleOf: คำนวณบทบาทเดิมจากหน้าที
 t('ข้อมูลของฉันไม่อยู่ในเมนูหลัก (อยู่ในเมนูผู้ใช้)', () => {
   assert.ok(hashes(me([])).includes('profile')); assert.ok(!groups(me(['admin'])).includes('me'));
 });
+t('ทุกหน้า/ทุกกลุ่มเมนูมีไอคอนของตัวเอง', async () => {});
+{ const { ICON_NAMES } = await import('../js/icons.js'); const { PAGES, GROUPS } = await import('../js/perm.js');
+  for (const p of PAGES) assert.ok(ICON_NAMES.includes(p[0]), `ไม่มีไอคอนของหน้า ${p[0]}`);
+  for (const g of GROUPS) assert.ok(ICON_NAMES.includes(g[2]), `ไม่มีไอคอนของกลุ่ม ${g[0]}`); }
 console.log(`\nผ่านทั้งหมด ${n} รายการ`);

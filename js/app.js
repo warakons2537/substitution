@@ -19,9 +19,11 @@ import * as summary from './views/summary.js';
 import * as approvals from './views/approvals.js';
 import * as assistleave from './views/assistleave.js';
 import * as mysubs from './views/mysubs.js';
+import * as remind from './views/remind.js';
 import { icon } from './icons.js';
 import { mountNav, labelHtml } from './navbar.js';
-import { mountBell } from './notify.js';
+import { mountBell, registerSW } from './notify.js';
+import { loadCounts, badgeHtml } from './counts.js';
 
 const root = $('#app');
 
@@ -30,7 +32,7 @@ const VIEWS = {
   home: home.render, request: request.render, mine: request.renderMine, approvals: approvals.render, 'assist-leave': assistleave.render, leaves: leaves.render,
   'leave-settings': setts.renderLeave, mysubs: mysubs.render, assist: assist.render, requests: requests.render, records: records.render,
   summary: summary.render, reports: reports.render, import: imp.render, users: users.render, settings: setts.render, audit: audit.render,
-  profile: profile.render,
+  profile: profile.render, remind: remind.render,
 };
 // แอปอื่นในเครือ เข้าผ่านหน้าทางเข้า WL ที่เดียว
 const SIBLINGS = [{ name: 'ทางเข้า WL (ทุกแอป)', url: '../' }];
@@ -123,10 +125,10 @@ function drawNav(me, group, page) {
     const tabs = tabsOf(me, g).map((p) => p[0]);
     return { g, t, ic, href: tabs.includes(lastTab(g)) ? lastTab(g) : tabs[0] };
   });
-  $('#side-nav').innerHTML = groups.map((x) => `<a href="#${x.href}" data-v="${x.g}">${icon(x.ic)}<span>${labelHtml(x.t)}</span></a>`).join('')
+  $('#side-nav').innerHTML = groups.map((x) => `<a href="#${x.href}" data-v="${x.g}">${icon(x.ic)}<span>${labelHtml(x.t)}</span>${badgeHtml(x.g)}</a>`).join('')
     + `<div class="sec"></div>${SIBLINGS.map((x) => `<a href="${esc(x.url)}" class="ext">${icon('link')}<span>${esc(x.name)}</span></a>`).join('')}`;
   const tabs = tabsOf(me, group);
-  $('#ptabs').innerHTML = tabs.length > 1 ? tabs.map(([h, t]) => `<a href="#${h}" class="${h === page ? 'on' : ''}"${h === page ? ' aria-current="page"' : ''}>${esc(t)}</a>`).join('') : '';
+  $('#ptabs').innerHTML = tabs.length > 1 ? tabs.map(([h, t]) => `<a href="#${h}" class="${h === page ? 'on' : ''}"${h === page ? ' aria-current="page"' : ''}>${icon(h)}<span>${esc(t)}</span></a>`).join('') : '';
   const fresh = document.createElement('div'); fresh.id = 'bnav-root';
   $('#bnav-root').replaceWith(fresh);
   const keys = groups.map((x) => x.g);
@@ -137,7 +139,8 @@ function drawNav(me, group, page) {
   $$('#side-nav a[data-v]').forEach((a) => a.classList.toggle('on', a.dataset.v === group));
 }
 
-let ctx = null;
+let ctx = null; let routeSeq = 0;
+window.addEventListener('wlsub:counts', () => { if (ctx) loadCounts(ctx.me); });   // หน้าใดทำงานค้างเสร็จ → อัปเดตตัวเลขบนเมนู
 async function route() {
   if (!ctx) return;
   const { me } = ctx;
@@ -153,8 +156,13 @@ async function route() {
     view.innerHTML = `<h2>${esc(item[1])}</h2><div class="card"><p>ยังไม่มีตารางสอนในระบบ ${me.duties.includes('academic') || me.duties.includes('admin') ? 'กรุณานำเข้าตารางสอนก่อน' : 'กรุณาแจ้งฝ่ายวิชาการ'}</p></div>`;
     return;
   }
-  view.innerHTML = '<div class="loading" role="status"><i class="bar"></i><span>กำลังโหลด…</span></div>';
+  view.classList.remove('enter');
+  view.innerHTML = `<div class="skel" role="status" aria-label="กำลังโหลด"><i class="sk-hero"></i><div class="sk-row"><i></i><i></i><i></i></div><i class="sk-card"></i></div>`;
+  const seq = ++routeSeq;
+  loadCounts(me);   // ตัวเลขงานค้างบนเมนู (ไม่รอ)
   try { await VIEWS[item[0]](view, ctx); } catch (e) { console.error(e); view.innerHTML = `<div class="card"><p class="warn">${esc(e.message)}</p></div>`; }
+  if (seq !== routeSeq) return;   // ผู้ใช้เปลี่ยนหน้าไปแล้วระหว่างโหลด
+  view.classList.add('enter');
   fitHeroTitles(view);
   window.scrollTo(0, 0); $('.main')?.scrollTo(0, 0);   // มือถือ: .main เป็นตัวเลื่อน
 }
@@ -184,4 +192,5 @@ async function boot() {
 }
 
 window.addEventListener('hashchange', route);
+registerSW();
 boot();

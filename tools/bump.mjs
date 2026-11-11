@@ -10,7 +10,10 @@ const map = JSON.stringify({ imports: Object.fromEntries(files.sort().map((f) =>
 let h = readFileSync('index.html', 'utf8');
 h = h.replace(/css\/app\.css\?v=[\d.\-]+/, `css/app.css?v=${v}`);
 h = h.replace(/<script type="importmap">[\s\S]*?<\/script>\n?/, '');
-h = h.replace('<script type="module" src="js/app.js"></script>', `<script type="importmap">${map}</script>\n<script type="module" src="js/app.js?v=${v}"></script>`);
+// แท็ก app.js อาจมี ?v= เดิมติดอยู่ (เดิมจับเฉพาะแบบไม่มี ?v= ทำให้ import map หายเมื่อรันรอบถัดไป)
+const tag = /<script type="module" src="js\/app\.js[^"]*"><\/script>/;
+if (!tag.test(h)) { console.error('ไม่พบแท็ก <script type="module" src="js/app.js…"> ใน index.html'); process.exit(1); }
+h = h.replace(tag, `<script type="importmap">${map}</script>\n<script type="module" src="js/app.js?v=${v}"></script>`);
 writeFileSync('index.html', h);
 writeFileSync('js/config.js', readFileSync('js/config.js', 'utf8').replace(/VERSION = '[^']*'/, `VERSION = '${v}'`));
 console.log(`เวอร์ชัน ${v} · import map ${files.length} ไฟล์`);

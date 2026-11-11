@@ -780,3 +780,148 @@ $$;
 -- =====================================================================
 alter table public.sub_leave_types add column if not exists is_leave boolean not null default true;
 update public.sub_leave_types set is_leave = false where leave_type = 'ไปราชการ';
+
+-- =====================================================================
+--  รอบ 7: แจ้งเตือนการสอนแทนตามเวลาที่กำหนด · ตัวเลขงานค้างบนเมนู · ตัวเลือกแบบพิมพ์ (รันซ้ำได้)
+--  เวลาใช้เขตเวลาไทย (Asia/Bangkok) · ค่าว่าง (null) = ไม่เตือนช่วงนั้น
+-- =====================================================================
+alter table public.sub_settings add column if not exists remind_on      boolean not null default true;
+alter table public.sub_settings add column if not exists remind_eve     time default '16:00';   -- เย็นวันก่อนสอนแทน
+alter table public.sub_settings add column if not exists remind_morning time default '07:00';   -- เช้าวันที่สอนแทน
+alter table public.sub_settings add column if not exists remind_before  int  default 10;        -- นาทีก่อนเริ่มคาบ (ต้องตั้ง period_times)
+alter table public.sub_settings add column if not exists period_times   jsonb not null default '[]'::jsonb;   -- ["08:30","09:30",…] ลำดับ = คาบ 1,2,…
+alter table public.sub_settings add column if not exists thai_digits    boolean not null default false;       -- แบบพิมพ์ใช้เลขไทย
+alter table public.sub_settings add column if not exists print_footer   boolean not null default true;        -- บรรทัดอ้างอิงท้ายกระดาษ
+
+-- เวลาเริ่มของคาบ p (null = ยังไม่ได้ตั้ง/รูปแบบไม่ถูก)
+create or replace function public.sub_period_start(p_times jsonb, p int) returns time
+language sql immutable as $$
+  select case when (p_times ->> (p - 1)) ~ '^([01]?[0-9]|2[0-3]):[0-5][0-9]$' then (p_times ->> (p - 1))::time end
+$$;
+
+-- สร้างรายการเตือนที่ "ถึงเวลาแล้ว" ลงกระดิ่งของครูสอนแทน — เรียกซ้ำกี่ครั้งก็ได้ (dedupe_key กันส่งซ้ำ)
+-- เรียกโดย pg_cron ทุก 5 นาที และโดยแอปที่เปิดอยู่ (สำรองเมื่อยังไม่เปิด pg_cron) · คืนจำนวนรายการที่สร้างใหม่
+create or replace function public.sub_remind_run() returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  s     public.sub_settings%rowtype;
+  d     date := (now() at time zone 'Asia/Bangkok')::date;
+  t     time := (now() at time zone 'Asia/Bangkok')::time;
+  n     int := 0;
+  c     int;
+begin
+  if auth.uid() is not null and not public.sub_is_member() then return 0; end if;
+  select * into s from public.sub_settings where id = 1;
+  if not found or not s.remind_on then return 0; end if;
+
+  -- 1) เย็นวันก่อน: "พรุ่งนี้คุณมีสอนแทน N คาบ" (1 ข้อความต่อคนต่อวัน)
+  if s.remind_eve is not null and t >= s.remind_eve then
+    insert into public.sub_notifications (user_id, kind, title, body, link, dedupe_key)
+    select u.user_id, 'sub_remind_eve', 'พรุ่งนี้คุณมีสอนแทน ' || count(*) || ' คาบ',
+           public.sub_th_date(d + 1) || ' · ' || string_agg('คาบ ' || r.period
+             || coalesce(' (' || to_char(public.sub_period_start(s.period_times, r.period), 'HH24:MI') || ' น.)', '')
+             || ' แทน ' || r.absent_teacher, ' · ' order by r.period),
+           'mysubs', 're:' || (d + 1)
+    from public.sub_records r
+    join public.sub_users u on u.teacher_name = r.substitute_teacher
+    where r.sub_date = d + 1 and r.status = 'confirmed' and r.substitute_teacher <> ''
+    group by u.user_id
+    on conflict do nothing;
+    get diagnostics c = row_count; n := n + c;
+  end if;
+
+  -- 2) เช้าวันที่สอนแทน (ภายใน 3 ชั่วโมงหลังเวลาที่ตั้ง): "วันนี้คุณมีสอนแทน N คาบ" + สรุปให้ฝ่ายวิชาการ
+  if s.remind_morning is not null and t >= s.remind_morning and (t - s.remind_morning) <= interval '3 hours' then
+    insert into public.sub_notifications (user_id, kind, title, body, link, dedupe_key)
+    select u.user_id, 'sub_remind_morning', 'วันนี้คุณมีสอนแทน ' || count(*) || ' คาบ',
+           string_agg('คาบ ' || r.period
+             || coalesce(' (' || to_char(public.sub_period_start(s.period_times, r.period), 'HH24:MI') || ' น.)', '')
+             || ' แทน ' || r.absent_teacher, ' · ' order by r.period),
+           'mysubs', 'rm:' || d
+    from public.sub_records r
+    join public.sub_users u on u.teacher_name = r.substitute_teacher
+    where r.sub_date = d and r.status = 'confirmed' and r.substitute_teacher <> ''
+    group by u.user_id
+    on conflict do nothing;
+    get diagnostics c = row_count; n := n + c;
+
+    insert into public.sub_notifications (user_id, kind, title, body, link, dedupe_key)
+    select u.user_id, 'sub_remind_staff', 'วันนี้มีสอนแทน ' || x.total || ' คาบ',
+           case when x.wait > 0 then 'ครูสอนแทนยังไม่กดรับทราบ ' || x.wait || ' คาบ' else 'ครูสอนแทนรับทราบครบแล้ว' end,
+           'records', 'ra:' || d
+    from (select count(*) as total, count(*) filter (where ack_at is null) as wait
+            from public.sub_records where sub_date = d and status = 'confirmed' and substitute_teacher <> '') x
+    join public.sub_users u on 'academic' = any(u.duties)
+    where x.total > 0
+    on conflict do nothing;
+    get diagnostics c = row_count; n := n + c;
+  end if;
+
+  -- 3) ก่อนเริ่มคาบ: "อีกไม่เกิน N นาที สอนแทนคาบ p" (เฉพาะคาบที่ตั้งเวลาเริ่มไว้ และยังไม่เริ่ม)
+  if s.remind_before is not null and s.remind_before > 0 then
+    insert into public.sub_notifications (user_id, kind, title, body, link, dedupe_key)
+    select u.user_id, 'sub_remind_soon', 'อีกไม่เกิน ' || s.remind_before || ' นาที สอนแทนคาบ ' || r.period,
+           'เริ่ม ' || to_char(ps.st, 'HH24:MI') || ' น. · แทน ' || r.absent_teacher
+             || case when btrim(r.grade || ' ' || r.subject) <> '' then ' · ' || btrim(r.grade || ' ' || r.subject) else '' end,
+           'mysubs', 'rp:' || d || ':' || r.period
+    from public.sub_records r
+    join public.sub_users u on u.teacher_name = r.substitute_teacher
+    cross join lateral (select public.sub_period_start(s.period_times, r.period) as st) ps
+    where r.sub_date = d and r.status = 'confirmed' and r.substitute_teacher <> ''
+      and ps.st is not null and ps.st > t and (ps.st - t) <= make_interval(mins => s.remind_before)
+    on conflict do nothing;
+    get diagnostics c = row_count; n := n + c;
+  end if;
+  return n;
+end $$;
+revoke execute on function public.sub_remind_run() from public, anon;
+grant execute on function public.sub_remind_run() to authenticated;
+
+-- บันทึกเวลาแจ้งเตือน (ฝ่ายวิชาการ/ผู้ดูแลระบบ)
+create or replace function public.sub_remind_save(p_on boolean, p_eve text, p_morning text, p_before int, p_times jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+declare x text;
+begin
+  if not public.sub_has('academic') then raise exception 'ไม่มีสิทธิ์ทำรายการนี้'; end if;
+  if jsonb_typeof(coalesce(p_times, '[]'::jsonb)) <> 'array' then raise exception 'รูปแบบเวลาเริ่มคาบไม่ถูกต้อง'; end if;
+  for x in select jsonb_array_elements_text(coalesce(p_times, '[]'::jsonb)) loop
+    if x <> '' and x !~ '^([01]?[0-9]|2[0-3]):[0-5][0-9]$' then raise exception 'เวลาเริ่มคาบไม่ถูกต้อง: %', x; end if;
+  end loop;
+  if p_before is not null and p_before not between 1 and 120 then raise exception 'นาทีก่อนเริ่มคาบต้องอยู่ระหว่าง 1–120'; end if;
+  update public.sub_settings set remind_on = coalesce(p_on, true),
+    remind_eve = nullif(btrim(coalesce(p_eve, '')), '')::time, remind_morning = nullif(btrim(coalesce(p_morning, '')), '')::time,
+    remind_before = p_before, period_times = coalesce(p_times, '[]'::jsonb), updated_at = now()
+  where id = 1;
+end $$;
+grant execute on function public.sub_remind_save(boolean, text, text, int, jsonb) to authenticated;
+
+-- สถานะตัวตั้งเวลาอัตโนมัติ (pg_cron) — ให้หน้า "เวลาแจ้งเตือน" แสดงว่าทำงานอยู่หรือยัง
+create or replace function public.sub_remind_status() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare ok boolean := false;
+begin
+  if not public.sub_is_member() then return null; end if;
+  begin
+    execute 'select exists (select 1 from cron.job where jobname = ''sub-remind'' and active)' into ok;
+  exception when others then ok := false;
+  end;
+  return jsonb_build_object('cron', coalesce(ok, false), 'now', to_char(now() at time zone 'Asia/Bangkok', 'HH24:MI'));
+end $$;
+grant execute on function public.sub_remind_status() to authenticated;
+
+-- จำนวนคาบสอนแทนของฉัน (วันนี้เป็นต้นไป) ที่ยังไม่กดรับทราบ — ใช้ทำตัวเลขบนเมนู
+create or replace function public.sub_my_unack() returns int
+language sql stable security definer set search_path = public as $$
+  select count(*)::int from public.sub_records
+  where public.sub_my_teacher() <> '' and substitute_teacher = public.sub_my_teacher() and status = 'confirmed'
+    and ack_at is null and sub_date >= (now() at time zone 'Asia/Bangkok')::date
+$$;
+grant execute on function public.sub_my_unack() to authenticated;
+
+-- ตั้งเวลาอัตโนมัติทุก 5 นาที (ถ้าโปรเจกต์เปิด pg_cron ได้) — ถ้าไม่ได้ ระบบยังเตือนเมื่อมีผู้ใช้เปิดแอปอยู่
+do $$ begin
+  create extension if not exists pg_cron;
+  perform cron.schedule('sub-remind', '*/5 * * * *', 'select public.sub_remind_run()');
+exception when others then
+  raise notice 'ยังตั้งเวลาอัตโนมัติไม่ได้ (%) — เปิด pg_cron ที่ Database → Extensions แล้วรันไฟล์นี้ซ้ำ', sqlerrm;
+end $$;

@@ -120,7 +120,7 @@ function body(st, from, to, tt, s, logoSrc) {
 }
 
 export function printReport(st, from, to, tt, s) {
-  return printHtml(`<section class="a4">${body(st, from, to, tt, s, 'img/school-logo.png')}</section>`);
+  return printHtml(`<section class="a4">${body(st, from, to, tt, s, 'img/school-logo.png')}</section>`, s);
 }
 
 export function downloadWord(st, from, to, tt, s) {
