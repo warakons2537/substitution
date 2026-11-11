@@ -18,6 +18,7 @@ const LEAVE = {
   'ลากิจ': { key: 'personal', label: 'กิจส่วนตัว', subject: 'ขอลากิจ' },
   'ลาคลอด': { key: 'maternity', label: 'คลอดบุตร', subject: 'ขอลาคลอดบุตร' },
 };
+export const LEAVE_FORM_TYPES = Object.keys(LEAVE);
 const dayCount = (r) => {
   if (r.days != null) return Number(r.days);   // จากทะเบียนการลา (หักวันหยุดแล้ว)
   const all = dateRange(r.date_from, r.date_to);
@@ -166,7 +167,7 @@ export async function printLeaveForm(leave, prof, history) {
     const s = await settings();
     const req = { ...leave, id: leave.id };
     const hist = history.map((h) => ({ ...h, request_id: h.id }));   // ใช้ id ของรายการลาแทน request_id
-    const me = { full_name: prof.full_name || leave.teacher_name, position: prof.position || prof.position_short || '', position_short: prof.position_short || '', phone: '' };
+    const me = { full_name: prof.full_name || leave.teacher_name, position: prof.position || prof.position_short || '', position_short: prof.position_short || '', phone: prof.phone || '' };
     await printHtml(leavePage(req, me, s, hist));
   } catch (e) { toast(e.message, 'err'); }
 }

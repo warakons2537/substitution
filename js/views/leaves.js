@@ -5,6 +5,7 @@ import { has } from '../perm.js';
 import { realTeachers } from '../timetable.js';
 import { loadRules, countDays, usage, fiscalYear, fiscalRange, fmtDays, roundUsage, nonLeaveSet } from '../leaves.js';
 import { EVAL_LIMIT } from '../config.js';
+import { printLeaveForm, LEAVE_FORM_TYPES } from '../print.js';
 
 const NAME_KEY = 'wlsub-leave-filter';
 
@@ -81,13 +82,14 @@ export async function render(el, ctx) {
           ${staff ? `<td>${esc(l.teacher_name)}</td>` : ''}<td>${esc(l.leave_type)}${l.has_cert ? ' <span class="g-pill g-approved" title="มีใบรับรองแพทย์">' + ICON.approved + '<span>ใบรับรองแพทย์</span></span>' : ''}</td>
           <td class="c num">${fmtDays(l.days)}</td><td>${esc(l.reason)}${l.request_id ? ' <span class="g-tag">จากคำขอ</span>' : ''}</td>
           <td>${pill(l.status)}${staff && l.signed_at ? ' <span class="g-pill g-approved" title="เซ็นเอกสารแล้ว">' + ICON.approved + '<span>เซ็นแล้ว</span></span>' : ''}</td>
-          <td class="nowrap">${canEdit ? `<button class="g-btn g-btn-line g-btn-sm" type="button" data-edit="${l.id}">แก้ไข</button> ` : ''}${canDel ? `<button class="g-btn g-btn-line g-btn-sm g-danger" type="button" data-del="${l.id}">ลบ</button>` : ''}</td></tr>`; }).join('')}
+          <td class="nowrap">${LEAVE_FORM_TYPES.includes(l.leave_type) && ['pending', 'approved'].includes(l.status) ? `<button class="g-btn g-btn-line g-btn-sm" type="button" data-pform="${l.id}">พิมพ์ใบลา</button> ` : ''}${canEdit ? `<button class="g-btn g-btn-line g-btn-sm" type="button" data-edit="${l.id}">แก้ไข</button> ` : ''}${canDel ? `<button class="g-btn g-btn-line g-btn-sm g-danger" type="button" data-del="${l.id}">ลบ</button>` : ''}</td></tr>`; }).join('')}
       </tbody></table></div>` : '<p class="g-empty">ไม่มีรายการ</p>'}</section></div>`;
 
   const keep = () => sessionStorage.setItem(NAME_KEY, JSON.stringify({ fy: +$('#lv-fy', el).value, teacher: $('#lv-t', el)?.value || '', type: $('.g-chip[aria-pressed="true"]', el)?.dataset.ty || '' }));
   ['#lv-fy', '#lv-t'].forEach((s) => $(s, el)?.addEventListener('change', () => { keep(); render(el, ctx); }));
   $$('.g-chip', el).forEach((b) => b.addEventListener('click', () => { $$('.g-chip', el).forEach((x) => x.setAttribute('aria-pressed', x === b)); keep(); render(el, ctx); }));
   $('#lv-add', el)?.addEventListener('click', () => edit(null));
+  $$('[data-pform]', el).forEach((b) => b.addEventListener('click', () => printLeaveOf(all.find((l) => l.id === b.dataset.pform), me)));
   $$('[data-edit]', el).forEach((b) => b.addEventListener('click', () => edit(all.find((l) => l.id === b.dataset.edit))));
   $$('[data-del]', el).forEach((b) => b.addEventListener('click', async () => {
     if (!(await confirmBox('ลบรายการลานี้?'))) return;
@@ -132,4 +134,17 @@ export async function render(el, ctx) {
       toast('บันทึกแล้ว'); render(el, ctx);
     } catch (e) { toast(e.message, 'err'); }
   }
+}
+
+/** พิมพ์ใบลาจากรายการในทะเบียน · ของตัวเองใช้ข้อมูลของฉัน · ของครูอื่น (งานบุคคล/ผอ.) ใช้ข้อมูลจากบัญชีของครูคนนั้น */
+export async function printLeaveOf(l, me) {
+  try {
+    const own = l.teacher_name === me.teacher;
+    const [history, profs] = await Promise.all([
+      q(sb.from('sub_leaves').select('*').eq('teacher_name', l.teacher_name)),
+      own ? [] : q(sb.rpc('sub_teacher_profiles')).catch(() => []),
+    ]);
+    const prof = own ? me : (profs.find((p) => p.teacher_name === l.teacher_name) || {});
+    await printLeaveForm(history.find((x) => x.id === l.id) || l, prof, history);
+  } catch (e) { toast(e.message, 'err'); }
 }

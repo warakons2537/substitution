@@ -4,6 +4,8 @@ import { sb, q, settings } from '../db.js';
 import { has } from '../perm.js';
 import { fmtDays } from '../leaves.js';
 import { pill, hero } from '../gui.js';
+import { LEAVE_FORM_TYPES } from '../print.js';
+import { printLeaveOf } from './leaves.js';
 
 const COLS = 'id,teacher_name,leave_type,date_from,date_to,half,days,reason,contact,has_cert,note,status,request_id,signed_at,checked_at,decided_at,decision_note,created_at';
 const dt = (l) => (l.date_from === l.date_to ? thDate(l.date_from) : `${thDate(l.date_from)} – ${thDate(l.date_to)}`) + (l.half ? ` (${l.half === 'am' ? 'เช้า' : 'บ่าย'})` : '');
@@ -27,6 +29,7 @@ export async function render(el, ctx) {
         <td class="c num">${fmtDays(l.days)}</td><td>${esc(l.reason)}</td>
         <td>${l.signed_at ? pill('approved', 'เซ็นแล้ว') : pill('pending', 'ยังไม่เซ็น')}${l.checked_at ? ' ' + pill('approved', 'ตรวจแล้ว') : ''}</td>
         <td class="nowrap">
+          ${LEAVE_FORM_TYPES.includes(l.leave_type) ? `<button class="g-btn g-btn-line g-btn-sm" type="button" data-pform="${l.id}">พิมพ์ใบลา</button> ` : ''}
           ${dir && l.status === 'pending' ? `<button class="g-btn g-btn-sm" type="button" data-ok="${l.id}">อนุญาต</button> <button class="g-btn g-btn-line g-btn-sm g-danger" type="button" data-no="${l.id}">ไม่อนุญาต</button> ` : ''}
           ${hr && !l.checked_at ? `<button class="g-btn g-btn-line g-btn-sm" type="button" data-chk="${l.id}">ตรวจแล้ว</button> ` : ''}
           ${hr ? `<button class="g-btn g-btn-line g-btn-sm" type="button" data-sign="${l.id}" data-v="${l.signed_at ? 0 : 1}">${l.signed_at ? 'ยกเลิกเซ็น' : 'เซ็นแล้ว'}</button>` : ''}</td></tr>`).join('')}
@@ -38,6 +41,7 @@ export async function render(el, ctx) {
     const r = await modal('ไม่อนุญาต', '<label>เหตุผล/หมายเหตุถึงผู้ลา<input name="note" maxlength="300"></label>', { okText: 'ไม่อนุญาต' });
     if (r) run(sb.rpc('sub_leave_decide', { p_id: b.dataset.no, p_status: 'rejected', p_note: (r.note || '').trim() }), 'บันทึกว่าไม่อนุญาตแล้ว');
   }));
+  $$('[data-pform]', el).forEach((b) => b.addEventListener('click', () => printLeaveOf(list.find((l) => l.id === b.dataset.pform), me)));
   $$('[data-chk]', el).forEach((b) => b.addEventListener('click', () => run(sb.rpc('sub_leave_check', { p_id: b.dataset.chk }), 'บันทึกแล้ว')));
   $$('[data-sign]', el).forEach((b) => b.addEventListener('click', () => run(sb.rpc('sub_leave_sign', { p_id: b.dataset.sign, p_signed: b.dataset.v === '1' }), 'บันทึกแล้ว')));
 }

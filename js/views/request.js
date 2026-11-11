@@ -1,7 +1,7 @@
 // ผู้ขอลา: แจ้งขอลา/ขอสอนแทน + คำขอของฉัน
 import { $, $$, esc, toast, thDate , confirmBox } from '../util.js';
 import { sb, q, rankData, REQ_COLS } from '../db.js';
-import { printRequest } from '../print.js';
+import { printRequest, LEAVE_FORM_TYPES } from '../print.js';
 import { mountLeaveForm } from '../leaveform.js';
 import { buildItems, mountPlanner, NONE, noteOf } from '../planner.js';
 import { pill, hero } from '../gui.js';
@@ -68,7 +68,7 @@ export async function renderMine(el, { me }) {
     <thead><tr><th>วันที่ลา</th><th>คาบ</th><th>ประเภท</th><th>สถานะ</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>
     ${list.map((r) => `<tr><td class="nowrap">${esc(dateText(r))}</td><td>${esc(periodText(r))}</td><td>${esc(r.leave_type)}</td>
       <td>${pill(r.status, STATUS[r.status])}</td><td>${esc(r.decision_note)}</td>
-      <td class="nowrap">${['pending', 'approved'].includes(r.status) ? `<button class="g-btn g-btn-line g-btn-sm" type="button" data-print="${r.id}">พิมพ์</button>
+      <td class="nowrap">${['pending', 'approved'].includes(r.status) ? `<button class="g-btn g-btn-line g-btn-sm" type="button" data-print="${r.id}">${LEAVE_FORM_TYPES.includes(r.leave_type) ? 'พิมพ์ใบลา/บันทึกสอนแทน' : 'พิมพ์บันทึกสอนแทน'}</button>
         <button class="g-btn g-btn-line g-btn-sm g-danger" type="button" data-cancel="${r.id}">ยกเลิก</button>` : ''}</td></tr>`).join('')}
     </tbody></table></div>` : '<p class="g-empty">ยังไม่มีคำขอ</p>'}</section></div>`;
   $$('[data-cancel]', el).forEach((b) => b.addEventListener('click', async () => {
