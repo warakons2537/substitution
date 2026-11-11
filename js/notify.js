@@ -4,6 +4,7 @@
 import { sb, q } from './db.js';
 import { esc } from './util.js';
 import { icon } from './icons.js';
+import { VAPID_PUBLIC_KEY } from './config.js';
 
 const when = (s) => new Date(s).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const BASE_TITLE = document.title;
@@ -35,6 +36,38 @@ export async function showDevice(title, body, link = '', tag = '') {
     return true;
   } catch { return false; }
 }
+// ---------- Web Push: สมัครอุปกรณ์นี้กับ push service แล้วฝากไว้ที่ฐานข้อมูล (รอบ 8) → ได้รับแจ้งเตือนแม้ปิดแอป ----------
+const b64u = (t) => Uint8Array.from(atob(t.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(t.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
+const sameKey = (buf, key) => { if (!buf) return true; const a = new Uint8Array(buf); return a.length === key.length && a.every((x, i) => x === key[i]); };
+export const pushSupported = () => !!VAPID_PUBLIC_KEY && 'serviceWorker' in navigator && 'PushManager' in window;
+let pushSt = 'off';   // 'on' = อุปกรณ์นี้ลงทะเบียนแล้ว · 'off' = ยังไม่เปิด/ไม่รองรับ · 'nosql' = ฐานข้อมูลยังไม่มีรอบ 8 · 'error'
+export const pushState = () => pushSt;
+/** เรียกเมื่อผู้ใช้อนุญาตแจ้งเตือนแล้ว (และทุกครั้งที่เปิดแอป — กุญแจ/เจ้าของอุปกรณ์อาจเปลี่ยน) */
+export async function syncPush() {
+  pushSt = 'off';
+  if (!pushSupported() || deviceState() !== 'granted') return pushSt;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return pushSt;
+    const key = b64u(VAPID_PUBLIC_KEY);
+    let sub = await reg.pushManager.getSubscription();
+    if (sub && !sameKey(sub.options?.applicationServerKey, key)) { await sub.unsubscribe(); sub = null; }   // เปลี่ยนกุญแจ → สมัครใหม่
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    const j = sub.toJSON();
+    const { error } = await sb.rpc('sub_push_save', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_ua: navigator.userAgent.slice(0, 200) });
+    pushSt = error ? 'nosql' : 'on';
+  } catch { pushSt = 'error'; }
+  return pushSt;
+}
+/** ออกจากระบบ → เลิกส่งมาที่อุปกรณ์นี้ (กันคนถัดไปที่ใช้เครื่องเดียวกันเห็นแจ้งเตือนของคนก่อน) */
+export async function dropPush() {
+  try {
+    const sub = await (await navigator.serviceWorker?.getRegistration())?.pushManager?.getSubscription();
+    if (sub) { await sb.rpc('sub_push_remove', { p_endpoint: sub.endpoint }); await sub.unsubscribe(); }
+  } catch { /* */ }
+  pushSt = 'off';
+}
+
 export const DEVICE_TEXT = {
   unsupported: 'เบราว์เซอร์นี้ยังแจ้งเตือนนอกแอปไม่ได้ (iPhone/iPad: เพิ่มแอปไปยังหน้าจอโฮมก่อน แล้วเปิดจากไอคอน)',
   default: 'ยังไม่ได้เปิดแจ้งเตือนบนอุปกรณ์นี้',
@@ -75,13 +108,13 @@ export function mountBell(host, me) {
         ${list.length ? `<div class="bell-list">${list.map((x) => `<button type="button" class="bell-item ${x.read_at ? '' : 'unread'}" data-id="${x.id}" data-link="${esc(x.link)}">
           <span class="bell-ic">${kindIcon(x.kind)}</span><span class="bell-tx"><b>${esc(x.title)}</b><span>${esc(x.body)}</span><small>${esc(when(x.created_at))}</small></span></button>`).join('')}</div>`
           : `<p class="bell-empty">${icon('bell')}<span>ยังไม่มีการแจ้งเตือน</span></p>`}
-        <div class="bell-foot ${dev}">${icon('phone')}<span>${DEVICE_TEXT[dev]}</span>${dev === 'default' ? '<button type="button" class="btn btn-sm btn-gold" data-dev>เปิดแจ้งเตือน</button>' : ''}</div></div>`;
+        <div class="bell-foot ${dev}">${icon('phone')}<span>${dev === 'granted' && pushSt === 'on' ? 'เปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว (เตือนแม้ปิดแอป)' : DEVICE_TEXT[dev]}</span>${dev === 'default' ? '<button type="button" class="btn btn-sm btn-gold" data-dev>เปิดแจ้งเตือน</button>' : ''}</div></div>`;
   }
   /** รายการใหม่ที่ยังไม่อ่าน → เด้งในแอป (ถ้าจอเปิดอยู่) หรือแจ้งเตือนของอุปกรณ์ (ถ้าแอปอยู่เบื้องหลัง) */
   function announce(fresh) {
     fresh.slice(0, 3).reverse().forEach((x) => {
       if (document.visibilityState === 'visible') pop(x, () => markRead([x.id]));
-      else showDevice(x.title, x.body, x.link, `wlsub-${x.id}`);
+      else if (pushSt !== 'on') showDevice(x.title, x.body, x.link, `wlsub-${x.id}`);   // มี Web Push แล้ว = service worker แสดงให้เอง (ไม่ซ้ำ)
     });
     if (fresh.length) { const b = host.querySelector('.bell'); b?.classList.add('ring'); try { navigator.vibrate?.(120); } catch { /* */ } }
   }
@@ -109,7 +142,7 @@ export function mountBell(host, me) {
     const item = e.target.closest('.bell-item');
     if (item) { open = false; const link = item.dataset.link; markRead([+item.dataset.id]); if (link) location.hash = link; return; }
     if (e.target.closest('[data-all]')) { markRead(null); return; }
-    if (e.target.closest('[data-dev]')) { const st = await enableDevice(); draw(); if (st === 'granted') showDevice('เปิดแจ้งเตือนแล้ว', 'ระบบจะเตือนเมื่อคุณมีคาบสอนแทนตามเวลาที่โรงเรียนกำหนด', 'mysubs', 'wlsub-hello'); return; }
+    if (e.target.closest('[data-dev]')) { const st = await enableDevice(); if (st === 'granted') await syncPush(); draw(); if (st === 'granted') showDevice('เปิดแจ้งเตือนแล้ว', 'ระบบจะเตือนเมื่อคุณมีคาบสอนแทนตามเวลาที่โรงเรียนกำหนด', 'mysubs', 'wlsub-hello'); return; }
     if (e.target.closest('.bell')) { open = !open; draw(); }
   });
   const away = (e) => { if (open && !host.contains(e.target)) { open = false; draw(); } };
@@ -118,6 +151,7 @@ export function mountBell(host, me) {
   document.addEventListener('click', away); document.addEventListener('keydown', esc2); document.addEventListener('visibilitychange', wake);
 
   load();
+  syncPush().then(() => draw());
   try {
     chan = sb.channel(`sub-notif-${me.id}`).on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'sub_notifications', filter: `user_id=eq.${me.id}` }, load).subscribe();

@@ -925,3 +925,100 @@ do $$ begin
 exception when others then
   raise notice 'ยังตั้งเวลาอัตโนมัติไม่ได้ (%) — เปิด pg_cron ที่ Database → Extensions แล้วรันไฟล์นี้ซ้ำ', sqlerrm;
 end $$;
+
+-- =====================================================================
+--  รอบ 8: Web Push — แจ้งเตือนถึงอุปกรณ์แม้ปิดแอปอยู่ (รันซ้ำได้)
+--  รายการใหม่ในกระดิ่ง (sub_notifications) → ทริกเกอร์เรียก Edge Function "sub-push" ผ่าน pg_net → ส่งถึงอุปกรณ์ที่ผู้ใช้กดเปิดแจ้งเตือนไว้
+--  หลังรันไฟล์นี้ ให้ตั้งปลายทาง 1 ครั้ง (ใน SQL Editor):
+--    select public.sub_push_setup('https://<project-ref>.supabase.co/functions/v1/sub-push', '<SUB_PUSH_SECRET ค่าเดียวกับใน Edge Function>');
+-- =====================================================================
+-- อุปกรณ์ที่รับแจ้งเตือน (1 แถว = 1 เบราว์เซอร์/แอปที่ติดตั้ง) — เข้าถึงผ่านฟังก์ชันเท่านั้น
+create table if not exists public.sub_push_subs (
+  endpoint   text primary key,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  p256dh     text not null,
+  auth       text not null,
+  ua         text not null default '',
+  created_at timestamptz not null default now()
+);
+create index if not exists sub_push_subs_user on public.sub_push_subs (user_id);
+alter table public.sub_push_subs enable row level security;
+revoke all on public.sub_push_subs from anon, authenticated;
+
+-- ปลายทางของ Edge Function + รหัสลับร่วม (ไม่มีใครอ่านได้ผ่าน API)
+create table if not exists public.sub_push_config (
+  id     int primary key default 1 check (id = 1),
+  fn_url text not null default '',
+  secret text not null default ''
+);
+insert into public.sub_push_config (id) values (1) on conflict (id) do nothing;
+alter table public.sub_push_config enable row level security;
+revoke all on public.sub_push_config from anon, authenticated;
+
+-- ผู้ใช้ลงทะเบียน/ยกเลิกอุปกรณ์ของตัวเอง (อุปกรณ์เดียวกันเปลี่ยนคนเข้าใช้ = ย้ายเจ้าของ)
+create or replace function public.sub_push_save(p_endpoint text, p_p256dh text, p_auth text, p_ua text default '') returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.sub_is_member() then raise exception 'ไม่มีสิทธิ์ทำรายการนี้'; end if;
+  if coalesce(p_endpoint, '') !~ '^https://' or coalesce(p_p256dh, '') = '' or coalesce(p_auth, '') = '' then raise exception 'ข้อมูลอุปกรณ์ไม่ถูกต้อง'; end if;
+  insert into public.sub_push_subs (endpoint, user_id, p256dh, auth, ua)
+  values (p_endpoint, auth.uid(), p_p256dh, p_auth, left(coalesce(p_ua, ''), 200))
+  on conflict (endpoint) do update set user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth, ua = excluded.ua;
+end $$;
+create or replace function public.sub_push_remove(p_endpoint text) returns void
+language sql security definer set search_path = public as $$
+  delete from public.sub_push_subs where endpoint = p_endpoint and user_id = auth.uid()
+$$;
+grant execute on function public.sub_push_save(text, text, text, text), public.sub_push_remove(text) to authenticated;
+
+-- ตั้งปลายทาง (ผู้ดูแลระบบ หรือรันจาก SQL Editor)
+create or replace function public.sub_push_setup(p_url text, p_secret text) returns text
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is not null and not public.sub_is_admin() then raise exception 'ไม่มีสิทธิ์ทำรายการนี้'; end if;
+  if coalesce(p_url, '') <> '' and (p_url !~ '^https://' or length(coalesce(p_secret, '')) < 16) then
+    raise exception 'ต้องใส่ URL ที่ขึ้นต้นด้วย https:// และรหัสลับอย่างน้อย 16 ตัวอักษร';
+  end if;
+  update public.sub_push_config set fn_url = coalesce(p_url, ''), secret = coalesce(p_secret, '') where id = 1;
+  return case when coalesce(p_url, '') = '' then 'ปิด Web Push แล้ว' else 'ตั้งปลายทาง Web Push แล้ว' end;
+end $$;
+revoke execute on function public.sub_push_setup(text, text) from public, anon;
+grant execute on function public.sub_push_setup(text, text) to authenticated;
+
+-- สถานะ (ให้หน้า "เวลาแจ้งเตือน" แสดง): ตั้งปลายทางแล้วหรือยัง · มี pg_net หรือยัง · อุปกรณ์ของฉันกี่เครื่อง
+create or replace function public.sub_push_status() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.sub_is_member() then return null; end if;
+  return jsonb_build_object(
+    'configured', exists (select 1 from public.sub_push_config where id = 1 and fn_url <> ''),
+    'net', to_regproc('net.http_post') is not null,
+    'mine', (select count(*) from public.sub_push_subs where user_id = auth.uid()));
+end $$;
+grant execute on function public.sub_push_status() to authenticated;
+
+-- รายการใหม่ในกระดิ่ง → เรียก Edge Function (ไม่รอผล · ผิดพลาดไม่กระทบการบันทึกรายการ)
+create or replace function public.sub_push_send() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare c public.sub_push_config%rowtype;
+begin
+  select * into c from public.sub_push_config where id = 1;
+  if not found or c.fn_url = '' then return null; end if;
+  if not exists (select 1 from public.sub_push_subs where user_id = new.user_id) then return null; end if;
+  begin
+    perform net.http_post(
+      url := c.fn_url,
+      body := jsonb_build_object('id', new.id, 'user_id', new.user_id, 'title', new.title, 'body', new.body, 'link', new.link),
+      headers := jsonb_build_object('Content-Type', 'application/json', 'x-sub-secret', c.secret));
+  exception when others then null;   -- ยังไม่เปิด pg_net / เครือข่ายขัดข้อง
+  end;
+  return null;
+end $$;
+drop trigger if exists sub_notifications_push on public.sub_notifications;
+create trigger sub_notifications_push after insert on public.sub_notifications for each row execute function public.sub_push_send();
+
+do $$ begin
+  create extension if not exists pg_net;
+exception when others then
+  raise notice 'ยังเปิด pg_net ไม่ได้ (%) — เปิดที่ Database → Extensions → pg_net', sqlerrm;
+end $$;

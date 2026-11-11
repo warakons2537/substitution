@@ -211,3 +211,17 @@
 - **แบบพิมพ์:** ข้อมูลที่ระบบกรอกพิมพ์บนเส้นประ · ช่องว่างเป็นเส้นประจริง (ไม่ใช้จุดพิมพ์) · วันที่แบบ "วันที่ … เดือน … พ.ศ. …" · หัวตารางแรเงา · บันทึกการสอนแทนใช้ขอบซ้าย 3 ซม./ขวา 2 ซม. และแสดง "รับทราบในระบบ + วันที่" ในช่องรับทราบ · ตัวเลือกใหม่ที่ ตั้งค่า → แบบพิมพ์: **ใช้เลขไทย** และ **บรรทัดอ้างอิงท้ายกระดาษ** (หลังรัน SQL รอบ 7) · ข้อความ/โครงของใบลาตามแบบโรงเรียนไม่เปลี่ยน ยังพอดี A4 1 แผ่น
 - แก้ `tools/bump.mjs`: เดิมรันรอบที่สองแล้ว import map หาย (ไฟล์ js ติดแคช) — เวอร์ชัน 11.11-3 ที่ใช้อยู่จึงไม่มี import map
 - ไฟล์ใหม่: `sw.js`, `js/counts.js`, `js/views/remind.js` · ไฟล์ที่เปลี่ยน: `supabase/schema.sql`, `css/app.css`, `index.html`, `js/{app,config,db,gui,icons,navbar,notify,perm,print,report}.js`, `js/views/{home,leaves,mysubs,settings}.js`, `tools/bump.mjs`, `tests/perm.test.mjs`
+
+## อัปเดต 2569.11.11-5 (Web Push — แจ้งเตือนถึงเครื่องแม้ปิดแอป)
+- ทางเดิน: รายการใหม่ในกระดิ่ง (`sub_notifications`) → ทริกเกอร์ `sub_push_send` (pg_net) → Edge Function `sub-push` → push service ของเบราว์เซอร์ → `sw.js` แสดงแจ้งเตือน · ใช้กับทุกชนิดในกระดิ่ง (ถูกจัดให้สอนแทน · เตือนตามเวลา · ใบลา ฯลฯ)
+- ออกจากระบบ = เลิกรับบนเครื่องนั้น · อุปกรณ์ที่ยกเลิก/ถอนแอปแล้วถูกลบออกเองเมื่อส่งไม่ถึง · ข้อความถูกเข้ารหัสถึงเครื่องปลายทาง (RFC 8291)
+- **ติดตั้ง (ครั้งเดียว · ทำตามลำดับ):**
+  1. รัน `supabase/schema.sql` ซ้ำ (**รอบ 8**: ตาราง `sub_push_subs`, `sub_push_config` · ฟังก์ชัน `sub_push_save/remove/setup/status` · ทริกเกอร์ · เปิด `pg_net`)
+  2. Supabase → **Edge Functions → Deploy a new function** → ตั้งชื่อ `sub-push` → วางเนื้อหาไฟล์ `supabase/functions/sub-push/index.ts` ทั้งไฟล์ → **ปิด "Verify JWT"** → Deploy
+  3. Edge Functions → **Secrets** → เพิ่ม 3 ค่าจากไฟล์ `.vapid-private.txt` (อยู่ในเครื่องที่รัน `node tools/vapid.mjs` · ไม่อยู่ใน GitHub): `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `SUB_PUSH_SECRET` · (แนะนำ) `VAPID_SUBJECT` = `mailto:อีเมลผู้ดูแล` · เสร็จแล้วเก็บไฟล์ไว้ที่ปลอดภัยหรือลบทิ้ง
+  4. SQL Editor: `select public.sub_push_setup('https://<project-ref>.supabase.co/functions/v1/sub-push', '<ค่า SUB_PUSH_SECRET>');`
+  5. แต่ละคนเปิดแอป → กระดิ่ง → "เปิดแจ้งเตือน" (iPhone/iPad: ต้องเพิ่มไปยังหน้าจอโฮมและเปิดจากไอคอนก่อน · iOS 16.4 ขึ้นไป) — สถานะดูได้ที่ ตั้งค่า → เวลาแจ้งเตือน → "อุปกรณ์เครื่องนี้"
+- ตรวจ: `select * from net._http_response order by id desc limit 5;` (ควรได้ status_code 200 และ `{"sent":[201]}`) · `select user_id, ua, created_at from public.sub_push_subs;` · ปิดชั่วคราว: `select public.sub_push_setup('', '');`
+- เปลี่ยนกุญแจ: `node tools/vapid.mjs --force` → ใส่ Secrets ชุดใหม่ + `sub_push_setup` ใหม่ → อัปโหลดแอป (เครื่องเดิมสมัครใหม่เองเมื่อเปิดแอป)
+- ทดสอบแล้ว: การเข้ารหัส/ลายเซ็นของ `sub-push` เทียบกับไลบรารี `http_ece`/`web-push` และ SQL รอบ 8 บน Postgres จำลอง · **ยังไม่ได้ทดสอบ:** การ deploy จริงบน Supabase และการรับบนอุปกรณ์จริง
+- ไฟล์ใหม่: `supabase/functions/sub-push/index.ts`, `tools/vapid.mjs`, `.gitignore` · ไฟล์ที่เปลี่ยน: `supabase/schema.sql`, `js/{app,config,notify}.js`, `js/views/remind.js`, `index.html`

@@ -22,7 +22,7 @@ import * as mysubs from './views/mysubs.js';
 import * as remind from './views/remind.js';
 import { icon } from './icons.js';
 import { mountNav, labelHtml } from './navbar.js';
-import { mountBell, registerSW } from './notify.js';
+import { mountBell, registerSW, dropPush } from './notify.js';
 import { loadCounts, badgeHtml } from './counts.js';
 
 const root = $('#app');
@@ -100,7 +100,7 @@ function shell(me) {
   panel.addEventListener('click', (e) => { if (e.target.closest('a')) setMenu(false); });
   document.addEventListener('click', (e) => { if (!panel.hidden && !um.contains(e.target)) setMenu(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
-  const doLogout = async () => { bell?.destroy(); bell = null; clearInterval(clockTimer); await auth.signOut(); location.hash = ''; boot(); };
+  const doLogout = async () => { bell?.destroy(); bell = null; clearInterval(clockTimer); await dropPush(); await auth.signOut(); location.hash = ''; boot(); };
   $('#logout').addEventListener('click', doLogout);
   $('#logout-btn').addEventListener('click', doLogout);
   // วันที่-เวลาปัจจุบัน (จอกว้าง) และสถานะออนไลน์
