@@ -7,9 +7,15 @@ import { hero, bulkBar, pill } from '../gui.js';
 
 const SRC = { assist: 'ช่วยจัด', manual: 'บันทึกเอง', request: 'คำขอ' };
 
+// ลบแล้วต้องมีแถวหายจริง (ถ้าสิทธิ์ฐานข้อมูลไม่อนุญาต Supabase ไม่ฟ้อง error แต่ลบ 0 แถว)
+async function delRows(query, n) {
+  const gone = await q(query.select('id'));
+  if (gone.length < n) throw new Error('ลบไม่สำเร็จ — ยังไม่ได้รัน SQL รอบ 9 (supabase/schema.sql) หรือไม่มีสิทธิ์ลบ');
+}
+
 export async function render(el, ctx) {
   const { tt } = ctx;
-  const admin = ctx.me.role === 'admin';
+  const admin = true;   // หน้านี้เข้าได้เฉพาะฝ่ายวิชาการ/ผู้ดูแลระบบ — ลบรายการได้ทั้งคู่ (SQL รอบ 9)
   const month = sessionStorage.getItem('wlsub-month') || todayISO().slice(0, 7);
   const teachers = realTeachers(tt.data);
   const per = Array.from({ length: tt.data.periods }, (_, i) => i + 1);
@@ -79,7 +85,7 @@ export async function render(el, ctx) {
   }));
   $$('[data-del]', el).forEach((b) => b.addEventListener('click', async () => {
     if (!(await confirmBox('ลบรายการนี้?')) ) return;
-    try { await q(sb.from('sub_records').delete().eq('id', b.dataset.del)); toast('ลบแล้ว'); render(el, ctx); } catch (err) { toast(err.message, 'err'); }
+    try { await delRows(sb.from('sub_records').delete().eq('id', b.dataset.del), 1); toast('ลบแล้ว'); render(el, ctx); } catch (err) { toast(err.message, 'err'); }
   }));
   // ผู้ดูแลระบบ: เลือกหลายรายการแล้วลบ (รายการที่ลบไม่ถูกนับในสถิติอีก)
   const picks = () => $$('.m-pick:checked', el).map((c) => c.value);
@@ -90,6 +96,6 @@ export async function render(el, ctx) {
   $('#m-del-sel', el)?.addEventListener('click', async () => {
     const ids = picks();
     if (!ids.length || !(await confirmBox(`ลบ ${ids.length} รายการที่เลือก?`))) return;
-    try { await q(sb.from('sub_records').delete().in('id', ids)); toast(`ลบแล้ว ${ids.length} รายการ`); render(el, ctx); } catch (err) { toast(err.message, 'err'); }
+    try { await delRows(sb.from('sub_records').delete().in('id', ids), ids.length); toast(`ลบแล้ว ${ids.length} รายการ`); render(el, ctx); } catch (err) { toast(err.message, 'err'); }
   });
 }

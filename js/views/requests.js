@@ -33,7 +33,7 @@ async function openReq(el, ctx, req) {
   const items = buildItems(tt.data, req.teacher_name, dateRange(req.date_from, req.date_to), req.periods || []);
   for (const it of items) {
     const p = proposals.find((x) => x.sub_date === it.date && x.period === it.p);
-    if (p) { it.sel = p.substitute_teacher || NONE; it.note = p.note === 'ไม่ต้องสอนแทน' ? '' : p.note; }
+    if (p) { it.sel = p.substitute_teacher || NONE; it.note = p.note === 'ไม่ต้องสอนแทน' ? '' : (p.note || '').replace(/^คาบคู่( · )?/, ''); }
   }
   box.innerHTML = `<div class="wl-g"><section class="g-card"><div class="g-card-h"><h3>${esc(req.teacher_name)} · ${esc(dateText(req))} · ${esc(periodText(req))} · ${esc(req.leave_type)}</h3></div>
     <div class="g-pad"><p class="muted small">ค่าที่เลือกไว้ = ที่ผู้ขอลาเลือกแล้ว (คาบที่ให้ฝ่ายวิชาการจัด ระบบเลือกให้) เปลี่ยนได้ก่อนอนุมัติ</p>

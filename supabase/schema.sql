@@ -1022,3 +1022,9 @@ do $$ begin
 exception when others then
   raise notice 'ยังเปิด pg_net ไม่ได้ (%) — เปิดที่ Database → Extensions → pg_net', sqlerrm;
 end $$;
+
+-- =====================================================================
+--  รอบ 9: ฝ่ายวิชาการลบรายการสอนแทนที่จัดแล้วได้ทุกรายการ (เดิมลบได้เฉพาะรายการของคำขอ) (รันซ้ำได้)
+-- =====================================================================
+drop policy if exists sub_rec_del on public.sub_records;
+create policy sub_rec_del on public.sub_records for delete using (public.sub_is_staff());

@@ -8,6 +8,10 @@ import { esc, dowIndex, weekStart, addDays, thDate, thDay } from './util.js';
 import { slotsOf, realTeachers, gradeLabel } from './timetable.js';
 
 export const NONE = '__none';
+
+// คาบคู่: ห้องที่นักเรียนน้อย (ป.1–ป.4, ม.2, ม.3) ครูที่มีสอนคาบนั้นอยู่แล้วรับสอนแทนพร้อมกันได้
+const SMALL_CLASS = /^(ป[1-4]|ม[23])(?![0-9])/;
+export const isSmallClass = (grades) => !!grades?.length && grades.every((g) => SMALL_CLASS.test(String(g).replace(/[\s.]/g, '')));
 // คำมาตรฐานสำหรับช่องหมายเหตุ (งานที่มอบให้ผู้สอนแทน)
 export const NOTE_PRESETS = ['ทำใบงาน', 'ทำแบบฝึกหัด', 'สอนตามแผนการจัดการเรียนรู้', 'ทบทวนบทเรียน',
   'อ่านหนังสือ/ค้นคว้า', 'ทำงานที่ได้รับมอบหมาย', 'ทดสอบย่อย', 'ดูแลความเรียบร้อย'];
@@ -20,7 +24,7 @@ export function buildItems(data, absent, dates, periods = []) {
     for (const s of slotsOf(data, absent, d)) {
       if (periods.length && !periods.includes(s.p)) continue;
       items.push({ date, d, p: s.p, grade: gradeLabel(s), subject: s.subject, building: s.building,
-        co: s.teachers.filter((t) => t !== absent), sel: '', note: '' });
+        co: s.teachers.filter((t) => t !== absent), grades: s.grades, sel: '', note: '' });
     }
   }
   return items;
@@ -50,10 +54,14 @@ function makeRanker(data, rank, absent, excludeRequest) {
     const proposed = new Set(recs.filter((r) => r.s && r.st === 'proposed' && r.d === item.date && r.p === item.p).map((r) => r.s));
     const ws = weekStart(item.date); const we = addDays(ws, 6); const mon = item.date.slice(0, 7);
     const bi = order.indexOf(item.building);
+    const small = isSmallClass(item.grades);
 
     return pool.map((n) => {
       const reasons = [];
-      if (slotsOf(data, n, item.d).some((s) => s.p === item.p)) reasons.push('มีสอนคาบนี้');
+      // มีสอนคาบนี้อยู่: ห้องเล็กรับสอนแทนพร้อมกันได้ (คาบคู่) · ห้องอื่นถือว่าไม่ว่าง
+      const busy = slotsOf(data, n, item.d).some((s) => s.p === item.p);
+      const dual = busy && small;
+      if (busy && !small) reasons.push('มีสอนคาบนี้');
       if (onLeave(n, item.date, item.p)) reasons.push('ลา/ไม่อยู่');
       if (done.some((x) => x.n === n && x.d === item.date && x.p === item.p)) reasons.push('สอนแทนคาบนี้แล้ว');
       const own = done.filter((x) => x.n === n);
@@ -62,14 +70,14 @@ function makeRanker(data, rank, absent, excludeRequest) {
       const month = own.filter((x) => x.d.slice(0, 7) === mon).length;
       const b = where(n, item.d, item.p); const ti = order.indexOf(b);
       const dist = bi < 0 || ti < 0 ? 9 : Math.abs(bi - ti);
-      return { n, ok: !reasons.length, reasons, soft: proposed.has(n) ? 1 : 0, dist, b, week, day,
+      return { n, ok: !reasons.length, reasons, dual: dual ? 1 : 0, soft: proposed.has(n) ? 1 : 0, dist, b, week, day,
         load: slotsOf(data, n, item.d).length + day, month, total: own.length };
-    }).sort((a, b) => (b.ok - a.ok) || (a.soft - b.soft) || (a.dist - b.dist) || (a.week - b.week) || (a.day - b.day)
+    }).sort((a, b) => (b.ok - a.ok) || (a.dual - b.dual) || (a.soft - b.soft) || (a.dist - b.dist) || (a.week - b.week) || (a.day - b.day)
       || (a.load - b.load) || (a.month - b.month) || (a.total - b.total) || a.n.localeCompare(b.n, 'th'));
   };
 }
 
-const label = (c) => `${c.n} · ${c.dist === 0 ? 'ตึกเดียวกัน' : (c.b || 'ไม่ทราบตึก')} · สัปดาห์นี้ ${c.week} ครั้ง · วันนี้ ${c.load} คาบ${c.soft ? ' · มีคำขออื่นเสนอไว้' : ''}`;
+const label = (c) => `${c.n} · ${c.dist === 0 ? 'ตึกเดียวกัน' : (c.b || 'ไม่ทราบตึก')} · สัปดาห์นี้ ${c.week} ครั้ง · วันนี้ ${c.load} คาบ${c.dual ? ' · คาบคู่ (มีสอนคาบนี้อยู่)' : ''}${c.soft ? ' · มีคำขออื่นเสนอไว้' : ''}`;
 
 /**
  * แสดงตารางคาบที่ต้องสอนแทนพร้อมตัวเลือกครู
@@ -82,7 +90,7 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
   for (const it of items) {
     if (it.sel) continue;
     if (it.co.length) { it.sel = NONE; continue; }
-    if (autoFill) { const best = rankOf(it, items).find((c) => c.ok); if (best) it.sel = best.n; }
+    if (autoFill) { const best = rankOf(it, items).find((c) => c.ok && !c.dual); if (best) it.sel = best.n; }   // คาบคู่ให้ผู้จัดเลือกเอง
   }
 
   const draw = () => {
@@ -92,7 +100,9 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
       ${items.map((it, i) => {
         const list = rankOf(it, items);
         const cur = list.find((c) => c.n === it.sel);
-        const warn = cur && !cur.ok ? `<div class="warn small">⚠ ${esc(cur.reasons.join(', '))}</div>` : '';
+        it.dual = !!(cur && cur.dual);
+        const warn = cur && !cur.ok ? `<div class="warn small">⚠ ${esc(cur.reasons.join(', '))}</div>`
+          : it.dual ? `<div class="g-note small">ⓘ ${esc(cur.n)} มีสอนคาบนี้อยู่แล้ว · รับสอนแทนพร้อมกันได้ (นักเรียน ${esc(it.grade)} มีจำนวนน้อย)</div>` : '';
         const coNote = it.co.length ? `<div class="muted small">ครูร่วม: ${esc(it.co.join(', '))}</div>` : '';
         return `<tr><td>${esc(thDay(it.date))} ${esc(thDate(it.date))}</td><td class="c">${it.p}</td>
           <td>${esc(it.grade)}</td><td>${esc(it.subject)}${coNote}</td>
@@ -100,8 +110,11 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
             <option value="">${allowEmpty ? '— ให้ฝ่ายวิชาการจัด —' : '— เลือกครูสอนแทน —'}</option>
             <option value="${NONE}"${it.sel === NONE ? ' selected' : ''}>ไม่ต้องสอนแทน</option>
             <optgroup label="แนะนำ (เรียงตามลำดับ)">
-              ${list.filter((c) => c.ok).map((c) => `<option value="${esc(c.n)}"${c.n === it.sel ? ' selected' : ''}>${esc(label(c))}</option>`).join('')}
+              ${list.filter((c) => c.ok && !c.dual).map((c) => `<option value="${esc(c.n)}"${c.n === it.sel ? ' selected' : ''}>${esc(label(c))}</option>`).join('')}
             </optgroup>
+            ${list.some((c) => c.dual) ? `<optgroup label="คาบคู่ — มีสอนคาบนี้อยู่ แต่รับสอนแทนได้ (ห้องนักเรียนน้อย)">
+              ${list.filter((c) => c.dual).map((c) => `<option value="${esc(c.n)}"${c.n === it.sel ? ' selected' : ''}>${esc(label(c))}</option>`).join('')}
+            </optgroup>` : ''}
             <optgroup label="ไม่ว่าง">
               ${list.filter((c) => !c.ok).map((c) => `<option value="${esc(c.n)}" ${c.n === it.sel ? 'selected' : 'disabled'}>${esc(c.n)} · ${esc(c.reasons.join(', '))}</option>`).join('')}
             </optgroup></select>${warn}</td>
@@ -116,4 +129,7 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
 }
 
 /** หมายเหตุที่จะบันทึก */
-export const noteOf = (it) => it.note || (it.sel === NONE ? 'ไม่ต้องสอนแทน' : '');
+export const noteOf = (it) => {
+  if (it.dual && it.sel !== NONE) return it.note.startsWith('คาบคู่') ? it.note : `คาบคู่${it.note ? ' · ' + it.note : ''}`;
+  return it.note || (it.sel === NONE ? 'ไม่ต้องสอนแทน' : '');
+};
