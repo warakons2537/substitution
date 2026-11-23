@@ -103,6 +103,7 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
         const list = rankOf(it, items);
         const cur = list.find((c) => c.n === it.sel);
         it.dual = !!(cur && cur.dual);
+        it.teaching = it.dual ? cur.teaching : '';
         const warn = cur && !cur.ok ? `<div class="warn small">⚠ ${esc(cur.reasons.join(', '))}</div>`
           : it.dual ? `<div class="g-note small">ⓘ ${esc(cur.n)} คาบนี้สอน ${esc(cur.teaching)} อยู่แล้ว · รับสอนแทนพร้อมกันได้ (นักเรียน ${esc(it.grade)} มีจำนวนน้อย)</div>` : '';
         const coNote = it.co.length ? `<div class="muted small">ครูร่วม: ${esc(it.co.join(', '))}</div>` : '';
@@ -130,8 +131,15 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
   return { items, valid: () => items.every((it) => it.sel) };
 }
 
+/** ตัดส่วน "คาบคู่ (สอน … อยู่)" ที่ระบบเติมไว้ออกจากหมายเหตุ เหลือเฉพาะที่ผู้จัดพิมพ์เอง */
+export const stripDual = (note = '') => note.replace(/^คาบคู่(\s*\(สอน .*? อยู่\))?( · )?/, '');
+
 /** หมายเหตุที่จะบันทึก */
 export const noteOf = (it) => {
-  if (it.dual && it.sel !== NONE) return it.note.startsWith('คาบคู่') ? it.note : `คาบคู่${it.note ? ' · ' + it.note : ''}`;
+  if (it.dual && it.sel !== NONE) {
+    const head = `คาบคู่${it.teaching ? ` (สอน ${it.teaching} อยู่)` : ''}`;
+    const rest = stripDual(it.note);
+    return rest ? `${head} · ${rest}` : head;
+  }
   return it.note || (it.sel === NONE ? 'ไม่ต้องสอนแทน' : '');
 };
