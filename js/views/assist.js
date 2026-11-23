@@ -1,8 +1,8 @@
 // ฝ่ายวิชาการ: ช่วยจัดครูสอนแทน
 import { $, toast } from '../util.js';
-import { sb, q, rankData } from '../db.js';
+import { sb, q } from '../db.js';
 import { mountLeaveForm } from '../leaveform.js';
-import { buildItems, mountPlanner, NONE, noteOf } from '../planner.js';
+import { buildItems, mountPlanner, NONE, noteOf, loadPlanCtx, skippedHolidays } from '../planner.js';
 import { hero } from '../gui.js';
 
 export async function render(el, { tt }) {
@@ -10,7 +10,7 @@ export async function render(el, { tt }) {
     <section class="g-card"><div id="a-form"></div></section>
     <section class="g-card"><div class="g-pad"><div id="a-plan"><p class="muted">เลือกครูที่ลาและวันที่</p></div>
       <div class="g-actions"><button class="g-btn" type="button" id="a-save" disabled>บันทึกการสอนแทน</button></div></div></section></div>`;
-  let rank = await rankData();
+  let { rank, dual, holidays } = await loadPlanCtx();
   let plan = null; let cur = null; let lastKey = '';
 
   const rebuild = (v) => {
@@ -20,11 +20,11 @@ export async function render(el, { tt }) {
     lastKey = key;
     cur = v; plan = null; $('#a-save').disabled = true;
     if (!v.teacher || !v.dates.length) { $('#a-plan').innerHTML = '<p class="muted">เลือกครูที่ลาและวันที่</p>'; return; }
-    let items = v.noneChecked ? [] : buildItems(tt.data, v.teacher, v.dates, v.periods);
+    let items = v.noneChecked ? [] : buildItems(tt.data, v.teacher, v.dates, v.periods, holidays);
     // คาบที่บันทึกไว้แล้วไม่ต้องจัดซ้ำ
     const done = items.filter((it) => rank.records.some((r) => r.a === v.teacher && r.d === it.date && r.p === it.p));
     items = items.filter((it) => !done.includes(it));
-    plan = mountPlanner($('#a-plan'), { data: tt.data, rank, absent: v.teacher, items });
+    plan = mountPlanner($('#a-plan'), { data: tt.data, rank, absent: v.teacher, items, dual, skipped: v.noneChecked ? [] : skippedHolidays(v.dates, holidays) });
     if (done.length) $('#a-plan').insertAdjacentHTML('afterbegin', `<p class="g-note">ข้าม ${done.length} คาบที่บันทึกไว้แล้ว (แก้ไขได้ที่หน้า "บันทึกการสอนแทน")</p>`);
     $('#a-save').disabled = !items.length;
   };
@@ -49,7 +49,7 @@ export async function render(el, { tt }) {
       $('#a-save').disabled = true;
       await q(sb.from('sub_records').insert(rows));
       toast(`บันทึกแล้ว ${rows.length} คาบ`);
-      rank = await rankData();
+      ({ rank, dual, holidays } = await loadPlanCtx());
       lastKey = ''; rebuild(cur);
     } catch (e) { toast(e.message, 'err'); $('#a-save').disabled = false; }
   });

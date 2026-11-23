@@ -10,7 +10,8 @@ const SRC = { assist: 'ช่วยจัด', manual: 'บันทึกเอ
 const byTh = (a, b) => a.localeCompare(b, 'th');
 
 /** สรุปจากรายการสอนแทน (status = confirmed) · teachers = ครูทุกคนในตารางสอน (ให้คนที่ยังไม่ได้สอนแทนขึ้น 0) */
-export function stats(recs, teachers = []) {
+export function stats(all, teachers = []) {
+  const recs = all.filter((r) => r.leave_type !== 'แลกคาบ');   // แลกคาบไม่ใช่การลา/สอนแทน ไม่นับในสถิติ
   const subs = new Map(teachers.map((t) => [t, { name: t, n: 0, dates: new Set() }]));
   const abs = new Map(); const subj = new Map(); const daily = new Map();
   for (const r of recs) {
@@ -29,7 +30,7 @@ export function stats(recs, teachers = []) {
     const d = daily.get(r.sub_date); d.absent.add(r.absent_teacher); d[has ? 'covered' : 'none'] += 1;
   }
   return {
-    recs,
+    recs, swaps: all.length - recs.length,
     subs: [...subs.values()].sort((a, b) => b.n - a.n || byTh(a.name, b.name)),
     absents: [...abs.values()].sort((a, b) => b.dates.size - a.dates.size || byTh(a.name, b.name)),
     subjects: [...subj.values()].sort((a, b) => b.covered + b.none - a.covered - a.none || byTh(a.subject, b.subject)),

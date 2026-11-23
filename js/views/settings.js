@@ -101,10 +101,10 @@ async function holidays(el) {
         <button class="g-btn g-btn-line g-btn-sm g-danger" type="button" data-del="${String(h.day).slice(0, 10)}">ลบ</button></div>`).join('') : '<p class="g-empty">ยังไม่มีวันหยุด</p>'}</section>`;
   $('#hd-add', el).addEventListener('submit', async (e) => {
     e.preventDefault(); const f = e.target;
-    try { await q(sb.from('sub_holidays').upsert({ day: f.day.value, name: f.name.value.trim() })); toast('เพิ่มแล้ว'); holidays(el); } catch (err) { toast(err.message, 'err'); }
+    try { await q(sb.from('sub_holidays').upsert({ day: f.day.value, name: f.name.value.trim() })); clearSettings(); toast('เพิ่มแล้ว'); holidays(el); } catch (err) { toast(err.message, 'err'); }
   });
   $$('[data-del]', el).forEach((b) => b.addEventListener('click', async () => {
     if (!(await confirmBox('ลบวันหยุดนี้?'))) return;
-    try { await q(sb.from('sub_holidays').delete().eq('day', b.dataset.del)); toast('ลบแล้ว'); holidays(el); } catch (err) { toast(err.message, 'err'); }
+    try { await q(sb.from('sub_holidays').delete().eq('day', b.dataset.del)); clearSettings(); toast('ลบแล้ว'); holidays(el); } catch (err) { toast(err.message, 'err'); }
   }));
 }

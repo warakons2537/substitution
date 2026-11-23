@@ -1,7 +1,7 @@
 // ฝ่ายวิชาการ: พิจารณาคำขอลา/ขอสอนแทน
 import { $, $$, esc, toast, dateRange } from '../util.js';
-import { sb, q, rankData, REQ_COLS } from '../db.js';
-import { buildItems, mountPlanner, NONE, noteOf, stripDual } from '../planner.js';
+import { sb, q, rpcOr, REQ_COLS } from '../db.js';
+import { buildItems, mountPlanner, NONE, noteOf, stripDual, loadPlanCtx, skippedHolidays } from '../planner.js';
 import { STATUS, periodText, dateText } from './request.js';
 import { pill, hero } from '../gui.js';
 
@@ -27,10 +27,11 @@ export async function render(el, ctx) {
 async function openReq(el, ctx, req) {
   const { tt } = ctx;
   const box = $('#rq-detail', el);
-  const [rank, proposals] = await Promise.all([
-    rankData(), q(sb.from('sub_records').select('*').eq('request_id', req.id)),
+  const [{ rank, dual, holidays }, proposals] = await Promise.all([
+    loadPlanCtx(), q(sb.from('sub_records').select('*').eq('request_id', req.id)),
   ]);
-  const items = buildItems(tt.data, req.teacher_name, dateRange(req.date_from, req.date_to), req.periods || []);
+  const dates = dateRange(req.date_from, req.date_to);
+  const items = buildItems(tt.data, req.teacher_name, dates, req.periods || [], holidays);
   for (const it of items) {
     const p = proposals.find((x) => x.sub_date === it.date && x.period === it.p);
     if (p) { it.sel = p.substitute_teacher || NONE; it.note = p.note === 'ไม่ต้องสอนแทน' ? '' : stripDual(p.note || ''); }
@@ -41,30 +42,33 @@ async function openReq(el, ctx, req) {
     <label class="g-lbl">หมายเหตุถึงผู้ขอลา<input id="rq-note" maxlength="300"></label>
     <div class="g-actions"><button class="g-btn g-btn-line g-danger" type="button" id="rq-reject">ไม่อนุมัติ</button>
       <button class="g-btn" type="button" id="rq-ok">อนุมัติและบันทึกการสอนแทน</button></div></div></section></div>`;
-  const plan = mountPlanner($('#rq-plan', box), { data: tt.data, rank, absent: req.teacher_name, items, excludeRequest: req.id });
+  const plan = mountPlanner($('#rq-plan', box), { data: tt.data, rank, absent: req.teacher_name, items, excludeRequest: req.id, dual, skipped: skippedHolidays(dates, holidays) });
   box.scrollIntoView({ behavior: 'smooth' });
 
   const decide = async (status) => {
     const note = $('#rq-note', box).value;
     if (status === 'approved' && !plan.valid()) { toast('กรุณาเลือกครูสอนแทน (หรือ "ไม่ต้องสอนแทน") ให้ครบทุกคาบ', 'err'); return; }
     try {
-      // ลบรายการเดิมของคำขอ แล้วบันทึกใหม่ (ถ้าบันทึกไม่สำเร็จ คืนรายการเดิม)
-      await q(sb.from('sub_records').delete().eq('request_id', req.id));
-      if (status === 'approved' && plan.items.length) {
-        await q(sb.from('sub_records').insert(plan.items.map((it) => ({
-          request_id: req.id, sub_date: it.date, academic_year: tt.academic_year, term: tt.term, period: it.p,
-          absent_teacher: req.teacher_name, leave_type: req.leave_type, grade: it.grade, subject: it.subject,
-          substitute_teacher: it.sel === NONE ? '' : it.sel, note: noteOf(it),
-          status: 'confirmed', source: 'request',
-        })))).catch(async (err) => {
-          const old = proposals.map(({ id, created_at, updated_at, ...r }) => r);
-          if (old.length) await sb.from('sub_records').insert(old);
-          throw err;
-        });
-      }
-      await q(sb.from('sub_requests').update({
-        status, decision_note: note, decided_by: ctx.me.id, decided_at: new Date().toISOString(),
-      }).eq('id', req.id));
+      const rows = status === 'approved' ? plan.items.map((it) => ({
+        sub_date: it.date, academic_year: tt.academic_year, term: tt.term, period: it.p,
+        absent_teacher: req.teacher_name, leave_type: req.leave_type, grade: it.grade, subject: it.subject,
+        substitute_teacher: it.sel === NONE ? '' : it.sel, note: noteOf(it),
+        status: 'confirmed', source: 'request',
+      })) : [];
+      // บันทึกในคำสั่งเดียว (SQL รอบ 10): ปรับทีละคาบ คาบที่ครูคนเดิมยังรับทราบอยู่ · ยังไม่รัน: ลบแล้วบันทึกใหม่แบบเดิม
+      await rpcOr('sub_decide_request', { p_id: req.id, p_status: status, p_note: note, p_rows: rows }, async () => {
+        await q(sb.from('sub_records').delete().eq('request_id', req.id));
+        if (rows.length) {
+          await q(sb.from('sub_records').insert(rows.map((x) => ({ ...x, request_id: req.id })))).catch(async (err) => {
+            const old = proposals.map(({ id, created_at, updated_at, ...r }) => r);
+            if (old.length) await sb.from('sub_records').insert(old);
+            throw err;
+          });
+        }
+        await q(sb.from('sub_requests').update({
+          status, decision_note: note, decided_by: ctx.me.id, decided_at: new Date().toISOString(),
+        }).eq('id', req.id));
+      });
       toast(status === 'approved' ? 'อนุมัติและบันทึกแล้ว' : 'บันทึกว่าไม่อนุมัติแล้ว');
       render(el, ctx);
     } catch (e) { toast(e.message, 'err'); }

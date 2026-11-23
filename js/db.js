@@ -41,10 +41,32 @@ export async function activeTimetable() {
   return (await q(sb.from('sub_timetables').select('id,academic_year,term,name,data').eq('is_active', true).limit(1)))[0] || null;
 }
 
-export async function rankData() {
-  const d = await q(sb.rpc('sub_rank_data'));
+/** ฐานข้อมูลยังไม่มีฟังก์ชันนี้ (ยังไม่ได้รัน SQL รอบใหม่) */
+export const missingFn = (e) => /Could not find the function|PGRST202|function .* does not exist|schema cache/i.test(e?.message || String(e));
+
+/** เรียกฟังก์ชันในฐานข้อมูล ถ้ายังไม่มี (ยังไม่รัน SQL รอบใหม่) ใช้วิธีเดิม fallback() */
+export async function rpcOr(name, args, fallback) {
+  const { data, error } = await sb.rpc(name, args);
+  if (!error) return data;
+  if (missingFn(error)) return fallback();
+  return q(Promise.resolve({ data, error }));
+}
+
+/** ข้อมูลจัดอันดับ/สถิติ: รายการสอนแทนตั้งแต่ from (ว่าง = 400 วันย้อนหลัง) + คำขอที่ยังมีผล */
+export async function rankData(from = null) {
+  const d = await rpcOr('sub_rank_data', from ? { p_from: from } : {}, () => q(sb.rpc('sub_rank_data')));
   return { records: d?.records || [], requests: d?.requests || [] };
 }
+
+/** วันหยุดที่ตั้งไว้ (ชุดวันที่ 'YYYY-MM-DD') — จำไว้ 5 นาที */
+let _hol = null; let _holAt = 0;
+export const holidaySet = () => {
+  if (!_hol || Date.now() - _holAt > 300000) {
+    _holAt = Date.now();
+    _hol = sb.from('sub_holidays').select('day,name').then(({ data }) => new Map((data || []).map((h) => [String(h.day).slice(0, 10), h.name || 'วันหยุด'])));
+  }
+  return _hol;
+};
 
 export async function settings() {
   return (await q(sb.from('sub_settings').select('*').eq('id', 1)))[0] || {};
@@ -52,7 +74,7 @@ export async function settings() {
 // ค่าตั้งค่าที่ใช้แสดงผลทั่วไป (เวลาเริ่มคาบ) — จำไว้ 5 นาที ไม่ดึงซ้ำทุกหน้า
 let _set = null; let _setAt = 0;
 export const settingsCached = () => { if (!_set || Date.now() - _setAt > 300000) { _setAt = Date.now(); _set = settings().catch(() => ({})); } return _set; };
-export const clearSettings = () => { _set = null; };
+export const clearSettings = () => { _set = null; _hol = null; };
 /** เวลาเริ่มคาบ 'HH:MM' (ว่าง = ยังไม่ได้ตั้ง) */
 export const periodTime = (s, p) => String((s?.period_times || [])[p - 1] || '').slice(0, 5);
 

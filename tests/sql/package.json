@@ -1,0 +1,8 @@
+{
+  "name": "wlsub-sql-test",
+  "private": true,
+  "type": "module",
+  "description": "ทดสอบ supabase/schema.sql บน Postgres จำลองในเครื่อง (PGlite) — ไม่แตะ Supabase จริง",
+  "scripts": { "test": "node sql.test.mjs" },
+  "devDependencies": { "@electric-sql/pglite": "0.6.0" }
+}

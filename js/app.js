@@ -20,6 +20,7 @@ import * as approvals from './views/approvals.js';
 import * as assistleave from './views/assistleave.js';
 import * as mysubs from './views/mysubs.js';
 import * as remind from './views/remind.js';
+import * as dual from './views/dual.js';
 import { icon } from './icons.js';
 import { mountNav, labelHtml } from './navbar.js';
 import { mountBell, registerSW, dropPush } from './notify.js';
@@ -32,7 +33,7 @@ const VIEWS = {
   home: home.render, request: request.render, mine: request.renderMine, approvals: approvals.render, 'assist-leave': assistleave.render, leaves: leaves.render,
   'leave-settings': setts.renderLeave, mysubs: mysubs.render, assist: assist.render, requests: requests.render, records: records.render,
   summary: summary.render, reports: reports.render, import: imp.render, users: users.render, settings: setts.render, audit: audit.render,
-  profile: profile.render, remind: remind.render,
+  profile: profile.render, remind: remind.render, dual: dual.render,
 };
 // แอปอื่นในเครือ เข้าผ่านหน้าทางเข้า WL ที่เดียว
 const SIBLINGS = [{ name: 'ทางเข้า WL (ทุกแอป)', url: '../' }];

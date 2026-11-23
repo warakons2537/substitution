@@ -1,7 +1,8 @@
 // ฝ่ายวิชาการ: นำเข้าตารางสอนจากไฟล์สำรอง JSON ของ WL Scheduler
 import { $, $$, esc, opts, toast, thDate , confirmBox } from '../util.js';
 import { sb, q } from '../db.js';
-import { listScenarios, convertScenario } from '../timetable.js';
+import { listScenarios, convertScenario, slotsOf } from '../timetable.js';
+import { todayISO, dowIndex } from '../util.js';
 import { pill, hero } from '../gui.js';
 
 const guessYearTerm = () => {
@@ -29,6 +30,19 @@ export async function render(el, ctx) {
           : `<button class="g-btn g-btn-line g-btn-sm" type="button" data-use="${t.id}">ใช้ตารางนี้</button> <button class="g-btn g-btn-line g-btn-sm g-danger" type="button" data-del="${t.id}">ลบ</button>`}</td></tr>`).join('')}
       </tbody></table></div>` : '<p class="g-empty">ยังไม่มี</p>'}</section></div>`;
 
+  // รายการสอนแทนตั้งแต่วันนี้ (ใช้ตรวจกับตารางใหม่)
+  const future = await q(sb.from('sub_records').select('sub_date,period,absent_teacher,substitute_teacher,note,leave_type')
+    .eq('status', 'confirmed').gte('sub_date', todayISO())).catch(() => []);
+  /** รายการล่วงหน้าที่ไม่ตรงกับตารางใหม่: ครูที่ลาไม่มีคาบนั้นแล้ว / ครูสอนแทนติดสอนคาบนั้น (ไม่ใช่คาบคู่) */
+  const mismatch = (D) => future.flatMap((r) => {
+    const d = dowIndex(r.sub_date); const out = [];
+    if (d < 0) return out;
+    const at = (n) => slotsOf(D, n, d).some((s) => s.p === r.period);
+    const when = `${thDate(r.sub_date)} คาบ ${r.period}`;
+    if (!at(r.absent_teacher)) out.push(`${when}: ${r.absent_teacher} ไม่มีสอนคาบนี้ในตารางใหม่`);
+    if (r.substitute_teacher && !String(r.note).startsWith('คาบคู่') && at(r.substitute_teacher)) out.push(`${when}: ${r.substitute_teacher} (ครูสอนแทน) ติดสอนคาบนี้ในตารางใหม่`);
+    return out;
+  });
   let json = null; let conv = null;
   const preview = () => {
     conv = null; $('#i-save', el).disabled = true;
@@ -39,6 +53,7 @@ export async function render(el, ctx) {
       $('#i-preview', el).innerHTML = `<p>พบ ${D.slots.length} คาบเรียน · ${D.days.length} วัน × ${D.periods} คาบ · ครู ${D.teachers.length} คน</p>
         ${conv.conflicts.length ? `<p class="warn">⚠ พบครูสอนชนกัน ${conv.conflicts.length} จุด (เช่น ${esc(conv.conflicts.slice(0, 3).join(', '))}) — ตรวจไฟล์ก่อนบันทึก</p>` : ''}
         ${conv.skipped.length ? `<p class="warn small">ข้าม ${conv.skipped.length} รายการที่อ่านไม่ได้</p>` : ''}
+        ${(() => { const m = mismatch(D); return m.length ? `<div class="g-note" role="status"><span>⚠ รายการสอนแทนที่จัดไว้ล่วงหน้า ${m.length} จุดไม่ตรงกับตารางใหม่ — ตรวจที่เมนู "บันทึกด้วยมือ/แก้ไข" หลังนำเข้า<br><small>${esc(m.slice(0, 8).join(' · '))}${m.length > 8 ? ' …' : ''}</small></span></div>` : ''; })()}
         <div class="g-scroll"><table class="g-tbl"><thead><tr><th>ครู</th><th>ตึกประจำ</th><th>คาบ/สัปดาห์</th><th>แนะนำเป็นผู้สอนแทน</th></tr></thead><tbody>
         ${D.teachers.map((t) => `<tr><td>${esc(t.name)}</td><td>${esc(t.building || '-')}</td><td class="c">${count(t.name)}</td>
           <td>${t.pseudo ? '<span class="muted">ไม่แนะนำ (ไม่ใช่ครูจริง)</span>' : (t.active ? 'แนะนำได้' : '<span class="muted">ไม่ใช้งาน</span>')}</td></tr>`).join('')}

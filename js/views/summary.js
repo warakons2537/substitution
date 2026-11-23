@@ -19,7 +19,7 @@ export function summarize(leaves, recs, from, to, nonLeave = new Set()) {
     else { r.leaves += 1; r.days += Number(l.days); }
   }
   for (const x of recs) {
-    if (x.st !== 'confirmed' || x.d < from || x.d > to) continue;
+    if (x.st !== 'confirmed' || x.d < from || x.d > to || x.lt === 'แลกคาบ') continue;   // แลกคาบไม่นับ
     if (x.a) row(x.a).covered += x.s ? 1 : 0;      // คาบของครูที่ลา ที่มีคนสอนแทน
     if (x.s) row(x.s).gave += 1;                    // คาบที่ครูคนนี้สอนแทนผู้อื่น
   }
@@ -29,7 +29,7 @@ export function summarize(leaves, recs, from, to, nonLeave = new Set()) {
 export async function render(el, ctx) {
   const { me } = ctx; const staff = has(me, 'academic') || has(me, 'hr') || has(me, 'director');
   const f = JSON.parse(sessionStorage.getItem(KEY) || 'null') || monthOf(todayISO().slice(0, 7));
-  const [rank, leaves, rules] = await Promise.all([rankData(), leavesRange(me, f.from, f.to), loadRules()]);
+  const [rank, leaves, rules] = await Promise.all([rankData(f.from), leavesRange(me, f.from, f.to), loadRules()]);
   let rows = summarize(leaves, rank.records, f.from, f.to, nonLeaveSet(rules));
   if (!staff) rows = rows.filter((r) => r.name === me.teacher);
   const fy = fiscalYear(todayISO()); const fr = fiscalRange(fy);
@@ -42,7 +42,7 @@ export async function render(el, ctx) {
       <label>ถึง<input type="date" name="to" value="${f.to}" required></label>
       <div class="g-actions"><button class="g-btn" type="submit">แสดง</button>
         <button class="g-btn g-btn-line" type="button" id="sm-month">เดือนนี้</button><button class="g-btn g-btn-line" type="button" id="sm-fy">ปีงบประมาณ ${fy}</button></div></form>
-      <p class="g-sub">"ไปราชการ" ไม่นับเป็นวันลา · "สอนแทนให้ผู้อื่น" นับจากคาบที่ยืนยันแล้ว · ${staff ? 'ใช้ดูความเป็นธรรมของการสอนแทน' : 'แสดงเฉพาะของคุณ'}</p></div></section>
+      <p class="g-sub">"ไปราชการ" ไม่นับเป็นวันลา · "แลกคาบ" ไม่นับ · "สอนแทนให้ผู้อื่น" นับจากคาบที่ยืนยันแล้ว · ${staff ? 'ใช้ดูความเป็นธรรมของการสอนแทน' : 'แสดงเฉพาะของคุณ'}</p></div></section>
     <section class="g-card">${rows.length ? `<div class="g-scroll"><table class="g-tbl"><thead><tr><th>ครู</th><th class="c">ลา (ครั้ง)</th><th class="c">ลา (วัน)</th>${hasOff ? '<th class="c">ไปราชการ (วัน)</th>' : ''}
       <th class="c">ถูกสอนแทน (คาบ)</th><th class="c">สอนแทนให้ผู้อื่น (คาบ)</th><th class="c">สอนแทน − ถูกแทน</th></tr></thead><tbody>
       ${rows.map((r) => { const d = r.gave - r.covered; return `<tr><td class="nowrap"><b>${esc(r.name)}</b></td><td class="c num">${r.leaves || '-'}</td><td class="c num">${r.days ? fmtDays(r.days) : '-'}</td>${hasOff ? `<td class="c num">${r.official ? fmtDays(r.official) : '-'}</td>` : ''}

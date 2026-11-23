@@ -32,7 +32,7 @@ html, body { margin: 0; height: 100%; background: #f6f2ee; }
   html, body { background: #151012; } .splash { color: #b3a5a8; } .splash b { color: #f3e3c3; } .splash .bar { background: #3a2d30; }
 }
 </style>
-<link rel="stylesheet" href="css/app.css?v=2569.11.11-10">
+<link rel="stylesheet" href="css/app.css?v=2569.11.11-12">
 </head>
 <body>
 <div id="app"><div class="splash" role="status" aria-live="polite">
@@ -45,42 +45,43 @@ html, body { margin: 0; height: 100%; background: #f6f2ee; }
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.1"></script>
 <script type="importmap">{
  "imports": {
-  "./js/app.js": "./js/app.js?v=2569.11.11-10",
-  "./js/config.js": "./js/config.js?v=2569.11.11-10",
-  "./js/counts.js": "./js/counts.js?v=2569.11.11-10",
-  "./js/db.js": "./js/db.js?v=2569.11.11-10",
-  "./js/gui.js": "./js/gui.js?v=2569.11.11-10",
-  "./js/icons.js": "./js/icons.js?v=2569.11.11-10",
-  "./js/leaveform.js": "./js/leaveform.js?v=2569.11.11-10",
-  "./js/leaveread.js": "./js/leaveread.js?v=2569.11.11-10",
-  "./js/leaves.js": "./js/leaves.js?v=2569.11.11-10",
-  "./js/navbar.js": "./js/navbar.js?v=2569.11.11-10",
-  "./js/notify.js": "./js/notify.js?v=2569.11.11-10",
-  "./js/perm.js": "./js/perm.js?v=2569.11.11-10",
-  "./js/planner.js": "./js/planner.js?v=2569.11.11-10",
-  "./js/print.js": "./js/print.js?v=2569.11.11-10",
-  "./js/report.js": "./js/report.js?v=2569.11.11-10",
-  "./js/timetable.js": "./js/timetable.js?v=2569.11.11-10",
-  "./js/util.js": "./js/util.js?v=2569.11.11-10",
-  "./js/views/approvals.js": "./js/views/approvals.js?v=2569.11.11-10",
-  "./js/views/assist.js": "./js/views/assist.js?v=2569.11.11-10",
-  "./js/views/assistleave.js": "./js/views/assistleave.js?v=2569.11.11-10",
-  "./js/views/audit.js": "./js/views/audit.js?v=2569.11.11-10",
-  "./js/views/home.js": "./js/views/home.js?v=2569.11.11-10",
-  "./js/views/import.js": "./js/views/import.js?v=2569.11.11-10",
-  "./js/views/leaves.js": "./js/views/leaves.js?v=2569.11.11-10",
-  "./js/views/mysubs.js": "./js/views/mysubs.js?v=2569.11.11-10",
-  "./js/views/profile.js": "./js/views/profile.js?v=2569.11.11-10",
-  "./js/views/records.js": "./js/views/records.js?v=2569.11.11-10",
-  "./js/views/remind.js": "./js/views/remind.js?v=2569.11.11-10",
-  "./js/views/reports.js": "./js/views/reports.js?v=2569.11.11-10",
-  "./js/views/request.js": "./js/views/request.js?v=2569.11.11-10",
-  "./js/views/requests.js": "./js/views/requests.js?v=2569.11.11-10",
-  "./js/views/settings.js": "./js/views/settings.js?v=2569.11.11-10",
-  "./js/views/summary.js": "./js/views/summary.js?v=2569.11.11-10",
-  "./js/views/users.js": "./js/views/users.js?v=2569.11.11-10"
+  "./js/app.js": "./js/app.js?v=2569.11.11-12",
+  "./js/config.js": "./js/config.js?v=2569.11.11-12",
+  "./js/counts.js": "./js/counts.js?v=2569.11.11-12",
+  "./js/db.js": "./js/db.js?v=2569.11.11-12",
+  "./js/gui.js": "./js/gui.js?v=2569.11.11-12",
+  "./js/icons.js": "./js/icons.js?v=2569.11.11-12",
+  "./js/leaveform.js": "./js/leaveform.js?v=2569.11.11-12",
+  "./js/leaveread.js": "./js/leaveread.js?v=2569.11.11-12",
+  "./js/leaves.js": "./js/leaves.js?v=2569.11.11-12",
+  "./js/navbar.js": "./js/navbar.js?v=2569.11.11-12",
+  "./js/notify.js": "./js/notify.js?v=2569.11.11-12",
+  "./js/perm.js": "./js/perm.js?v=2569.11.11-12",
+  "./js/planner.js": "./js/planner.js?v=2569.11.11-12",
+  "./js/print.js": "./js/print.js?v=2569.11.11-12",
+  "./js/report.js": "./js/report.js?v=2569.11.11-12",
+  "./js/timetable.js": "./js/timetable.js?v=2569.11.11-12",
+  "./js/util.js": "./js/util.js?v=2569.11.11-12",
+  "./js/views/approvals.js": "./js/views/approvals.js?v=2569.11.11-12",
+  "./js/views/assist.js": "./js/views/assist.js?v=2569.11.11-12",
+  "./js/views/assistleave.js": "./js/views/assistleave.js?v=2569.11.11-12",
+  "./js/views/audit.js": "./js/views/audit.js?v=2569.11.11-12",
+  "./js/views/dual.js": "./js/views/dual.js?v=2569.11.11-12",
+  "./js/views/home.js": "./js/views/home.js?v=2569.11.11-12",
+  "./js/views/import.js": "./js/views/import.js?v=2569.11.11-12",
+  "./js/views/leaves.js": "./js/views/leaves.js?v=2569.11.11-12",
+  "./js/views/mysubs.js": "./js/views/mysubs.js?v=2569.11.11-12",
+  "./js/views/profile.js": "./js/views/profile.js?v=2569.11.11-12",
+  "./js/views/records.js": "./js/views/records.js?v=2569.11.11-12",
+  "./js/views/remind.js": "./js/views/remind.js?v=2569.11.11-12",
+  "./js/views/reports.js": "./js/views/reports.js?v=2569.11.11-12",
+  "./js/views/request.js": "./js/views/request.js?v=2569.11.11-12",
+  "./js/views/requests.js": "./js/views/requests.js?v=2569.11.11-12",
+  "./js/views/settings.js": "./js/views/settings.js?v=2569.11.11-12",
+  "./js/views/summary.js": "./js/views/summary.js?v=2569.11.11-12",
+  "./js/views/users.js": "./js/views/users.js?v=2569.11.11-12"
  }
 }</script>
-<script type="module" src="js/app.js?v=2569.11.11-10"></script>
+<script type="module" src="js/app.js?v=2569.11.11-12"></script>
 </body>
 </html>

@@ -26,6 +26,7 @@ const P = {
   settings: '<rect class="f" x="3.5" y="8.5" width="17" height="8.5" rx="2"/><path d="M7 8.5V4h10v4.5"/><path d="M7 17H5.5a2 2 0 0 1-2-2v-4.5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2V15a2 2 0 0 1-2 2H17"/><path d="M7 14h10v6.5H7z"/><path d="M17 11.5h.01" stroke-width="2.4"/>',
   audit: '<circle class="f" cx="12" cy="12" r="8"/><path d="M4.6 15a8 8 0 1 0 .9-7.5"/><path d="M4 4.5v4h4"/><path d="M12 8v4.3l2.8 1.7"/>',
   remind: '<circle class="f" cx="12" cy="13" r="7.2"/><circle cx="12" cy="13" r="7.2"/><path d="M12 9.3V13l2.4 1.6"/><path d="M5.2 3.8 2.8 6.2M18.8 3.8l2.4 2.4"/>',
+  dual: '<rect class="f" x="3" y="6" width="11" height="12" rx="2"/><rect x="3" y="6" width="11" height="12" rx="2"/><rect x="10" y="3" width="11" height="12" rx="2"/><path d="M6.5 14h4M13.5 7.5h4M13.5 11h4"/>',
   profile: '<circle class="f" cx="12" cy="8" r="3.7"/><circle cx="12" cy="8" r="3.7"/><path d="M4.5 20.5c.8-4 3.6-6 7.5-6s6.7 2 7.5 6"/>',
   // ----- ทั่วไป -----
   link: '<rect class="f" x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/>',

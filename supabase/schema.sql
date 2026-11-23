@@ -1028,3 +1028,168 @@ end $$;
 -- =====================================================================
 drop policy if exists sub_rec_del on public.sub_records;
 create policy sub_rec_del on public.sub_records for delete using (public.sub_is_staff());
+
+-- =====================================================================
+--  รอบ 10: บันทึกครบหรือไม่บันทึกเลย · แจ้งยกเลิกการสอนแทน · ข้อมูลจัดอันดับเฉพาะช่วงที่ใช้
+--          · กติกาคาบคู่ตั้งค่าได้ · เตือนรับทราบซ้ำ (รันซ้ำได้)
+-- =====================================================================
+
+-- 10.1 แจ้งเตือนครูสอนแทน: ได้รับมอบหมาย / ถูกยกเลิกหรือเปลี่ยนตัว (เฉพาะคาบที่ยังไม่ผ่านไป)
+--      รวมเป็น 1 ข้อความต่อครู ต่อวันสอนแทน ต่อครูที่ลา ต่อการบันทึก 1 ครั้ง (txid) กันแจ้งรัว
+create or replace function public.sub_notify_records() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare today date := (now() at time zone 'Asia/Bangkok')::date;
+begin
+  if tg_op in ('UPDATE', 'DELETE') and old.status = 'confirmed' and old.substitute_teacher <> '' and old.sub_date >= today
+     and (tg_op = 'DELETE' or new.status <> 'confirmed' or new.substitute_teacher is distinct from old.substitute_teacher
+          or new.sub_date <> old.sub_date or new.period <> old.period) then
+    perform public.sub_notify_teacher(old.substitute_teacher, 'sub_cancelled', 'ยกเลิกการสอนแทน',
+      'ไม่ต้องสอนแทน ' || old.absent_teacher || ' · ' || public.sub_th_date(old.sub_date) || ' (ดูคาบที่เหลือที่ "สอนแทนของฉัน")', 'mysubs',
+      'sc:' || old.sub_date || ':' || old.absent_teacher || ':' || old.substitute_teacher || ':' || txid_current());
+  end if;
+  if tg_op in ('INSERT', 'UPDATE') and new.status = 'confirmed' and new.substitute_teacher <> ''
+     and (tg_op = 'INSERT' or old.status <> 'confirmed' or new.substitute_teacher is distinct from old.substitute_teacher
+          or new.sub_date <> old.sub_date or new.period <> old.period) then
+    perform public.sub_notify_teacher(new.substitute_teacher, 'sub_assigned',
+      case when new.leave_type = 'แลกคาบ' then 'มีการแลกคาบสอน' else 'คุณได้รับมอบหมายให้สอนแทน' end,
+      'แทน ' || new.absent_teacher || ' · ' || public.sub_th_date(new.sub_date) || ' (ดูคาบที่ "สอนแทนของฉัน")', 'mysubs',
+      'sa:' || new.sub_date || ':' || new.absent_teacher || ':' || new.substitute_teacher || ':' || txid_current());
+  end if;
+  return null;
+end $$;
+drop trigger if exists sub_records_notify on public.sub_records;
+create trigger sub_records_notify after insert or update or delete on public.sub_records for each row execute function public.sub_notify_records();
+
+-- 10.2 ยื่นคำขอ / พิจารณา / ยกเลิก ในคำสั่งเดียว (ถ้าขั้นใดผิดพลาด ย้อนกลับทั้งหมด)
+--      ทำงานด้วยสิทธิ์ของผู้เรียก (RLS เดิมยังบังคับใช้ทุกขั้น)
+create or replace function public.sub_rows(p_rows jsonb)
+returns table (sub_date date, academic_year int, term int, period int, absent_teacher text, leave_type text,
+               grade text, subject text, substitute_teacher text, note text, status text, source text)
+language sql immutable as $$
+  select x.sub_date, x.academic_year, x.term, x.period, x.absent_teacher, coalesce(x.leave_type, 'ไม่ระบุ'),
+         coalesce(x.grade, ''), coalesce(x.subject, ''), coalesce(x.substitute_teacher, ''), coalesce(x.note, ''),
+         coalesce(x.status, 'confirmed'), coalesce(x.source, 'request')
+  from jsonb_to_recordset(coalesce(p_rows, '[]'::jsonb)) as x(sub_date date, academic_year int, term int, period int,
+       absent_teacher text, leave_type text, grade text, subject text, substitute_teacher text, note text, status text, source text)
+$$;
+
+-- คืนเฉพาะคอลัมน์ที่ผู้ใช้อ่านได้ (sub_requests ปิดอ่าน reason/contact ระดับคอลัมน์ — ห้าม returning *)
+create or replace function public.sub_submit_request(p_req jsonb, p_rows jsonb) returns jsonb
+language plpgsql set search_path = public as $$
+declare v_id uuid; v_by uuid; v_at timestamptz; v_periods int[];
+begin
+  v_periods := coalesce((select array_agg(v::int) from jsonb_array_elements_text(p_req->'periods') v), '{}');
+  insert into public.sub_requests (teacher_name, date_from, date_to, periods, leave_type, reason, contact, status, decision_note)
+  values (p_req->>'teacher_name', (p_req->>'date_from')::date, (p_req->>'date_to')::date, v_periods,
+          coalesce(p_req->>'leave_type', 'ไม่ระบุ'), coalesce(p_req->>'reason', ''), coalesce(p_req->>'contact', ''),
+          coalesce(p_req->>'status', 'pending'), coalesce(p_req->>'decision_note', ''))
+  returning id, requested_by, created_at into v_id, v_by, v_at;
+  insert into public.sub_records (request_id, sub_date, academic_year, term, period, absent_teacher, leave_type, grade, subject,
+                                  substitute_teacher, note, status, source)
+  select v_id, x.sub_date, x.academic_year, x.term, x.period, x.absent_teacher, x.leave_type, x.grade, x.subject,
+         x.substitute_teacher, x.note, x.status, 'request'
+  from public.sub_rows(p_rows) x;
+  return jsonb_build_object('id', v_id, 'teacher_name', p_req->>'teacher_name', 'date_from', p_req->>'date_from', 'date_to', p_req->>'date_to',
+    'periods', to_jsonb(v_periods), 'leave_type', coalesce(p_req->>'leave_type', 'ไม่ระบุ'), 'status', coalesce(p_req->>'status', 'pending'),
+    'requested_by', v_by, 'decided_by', null, 'decided_at', null, 'decision_note', coalesce(p_req->>'decision_note', ''), 'created_at', v_at);
+end $$;
+grant execute on function public.sub_submit_request(jsonb, jsonb) to authenticated;
+
+-- อนุมัติ: ปรับรายการเดิมทีละคาบ (คาบที่ครูสอนแทนคนเดิม = การรับทราบยังอยู่ ไม่แจ้งซ้ำ) · ไม่อนุมัติ: ลบรายการของคำขอ
+create or replace function public.sub_decide_request(p_id uuid, p_status text, p_note text, p_rows jsonb) returns void
+language plpgsql set search_path = public as $$
+begin
+  if not public.sub_is_staff() then raise exception 'permission denied'; end if;
+  if p_status not in ('approved', 'rejected') then raise exception 'สถานะไม่ถูกต้อง'; end if;
+  if p_status = 'approved' then
+    delete from public.sub_records s where s.request_id = p_id
+      and not exists (select 1 from public.sub_rows(p_rows) x where x.sub_date = s.sub_date and x.period = s.period);
+    -- ปล่อยครูที่ถูกเปลี่ยนออกก่อน กันชนกับดัชนี "ครูหนึ่งคนสอนแทนคาบละห้องเดียว" ระหว่างสลับตัว
+    update public.sub_records s set substitute_teacher = '' from public.sub_rows(p_rows) x
+      where s.request_id = p_id and s.sub_date = x.sub_date and s.period = x.period and s.substitute_teacher <> x.substitute_teacher;
+    update public.sub_records s set substitute_teacher = x.substitute_teacher, note = x.note, grade = x.grade, subject = x.subject,
+           leave_type = x.leave_type, academic_year = x.academic_year, term = x.term, status = 'confirmed'
+      from public.sub_rows(p_rows) x
+      where s.request_id = p_id and s.sub_date = x.sub_date and s.period = x.period;
+    insert into public.sub_records (request_id, sub_date, academic_year, term, period, absent_teacher, leave_type, grade, subject,
+                                    substitute_teacher, note, status, source)
+    select p_id, x.sub_date, x.academic_year, x.term, x.period, x.absent_teacher, x.leave_type, x.grade, x.subject,
+           x.substitute_teacher, x.note, 'confirmed', 'request'
+    from public.sub_rows(p_rows) x
+    where not exists (select 1 from public.sub_records s where s.request_id = p_id and s.sub_date = x.sub_date and s.period = x.period);
+  else
+    delete from public.sub_records where request_id = p_id;
+  end if;
+  update public.sub_requests set status = p_status, decision_note = coalesce(p_note, ''), decided_by = auth.uid(), decided_at = now()
+   where id = p_id;
+  if not found then raise exception 'ไม่พบคำขอนี้'; end if;
+end $$;
+grant execute on function public.sub_decide_request(uuid, text, text, jsonb) to authenticated;
+
+-- ยกเลิก: ผู้ขอลา (คำขอของตัวเอง) หรือฝ่ายวิชาการ · ลบรายการสอนแทนของคำขอทั้งหมด รวมที่ฝ่ายวิชาการจัดเพิ่มให้
+create or replace function public.sub_cancel_request(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.sub_requests q where q.id = p_id and q.status in ('pending', 'approved')
+                 and (public.sub_is_staff() or (q.requested_by = auth.uid() and q.teacher_name = public.sub_my_teacher()))) then
+    raise exception 'ยกเลิกคำขอนี้ไม่ได้ (ไม่มีสิทธิ์ หรือคำขอถูกพิจารณา/ยกเลิกไปแล้ว)';
+  end if;
+  delete from public.sub_records where request_id = p_id;
+  update public.sub_requests set status = 'cancelled' where id = p_id;
+end $$;
+grant execute on function public.sub_cancel_request(uuid) to authenticated;
+
+-- 10.3 ข้อมูลจัดอันดับ: เฉพาะตั้งแต่ p_from (ค่าตั้งต้น 400 วันย้อนหลัง) · ไม่ส่งรหัสรายการ/การรับทราบของคนอื่นให้ครูทั่วไป
+--      เพิ่ม 'lt' (ประเภท เช่น แลกคาบ) · 'du' (เป็นคาบคู่) · 'n' หมายเหตุ/งานที่มอบหมาย (เฉพาะของตัวเองและฝ่ายวิชาการ)
+drop function if exists public.sub_rank_data();
+create or replace function public.sub_rank_data(p_from date default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare lo date := coalesce(p_from, (now() at time zone 'Asia/Bangkok')::date - 400);
+        staff boolean := public.sub_is_staff() or public.sub_is_hr() or public.sub_is_director();
+        me text := public.sub_my_teacher();
+begin
+  if not public.sub_is_member() then return null; end if;
+  return jsonb_build_object(
+    'records', coalesce((select jsonb_agg(jsonb_build_object(
+        'd', sub_date, 'p', period, 'a', absent_teacher, 's', substitute_teacher, 'st', status, 'lt', leave_type,
+        'du', note like 'คาบคู่%')
+        || case when staff or (me <> '' and (substitute_teacher = me or absent_teacher = me))
+                then jsonb_build_object('i', id, 'r', request_id, 'k', ack_at, 'n', note) else '{}'::jsonb end)
+      from public.sub_records where sub_date >= lo), '[]'::jsonb),
+    'requests', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', id, 't', teacher_name, 'from', date_from, 'to', date_to, 'periods', periods))
+      from public.sub_requests where status in ('pending', 'approved') and date_to >= lo), '[]'::jsonb));
+end $$;
+grant execute on function public.sub_rank_data(date) to authenticated;
+
+-- 10.4 กติกาคาบคู่ (ฝ่ายวิชาการตั้งเองได้)
+alter table public.sub_settings add column if not exists dual_grades     text not null default 'ป1,ป2,ป3,ป4,ม2,ม3';  -- ชั้นที่นักเรียนน้อย
+alter table public.sub_settings add column if not exists dual_both_small boolean not null default true;            -- ห้องที่ครูสอนอยู่ต้องเป็นห้องเล็กด้วย
+alter table public.sub_settings add column if not exists dual_max_dist   int;                                       -- ห่างกันได้ไม่เกินกี่ตึก (null = ไม่จำกัด)
+alter table public.sub_settings add column if not exists dual_max_day    int default 2;                             -- ต่อครูต่อวัน (null = ไม่จำกัด)
+
+create or replace function public.sub_dual_save(p_grades text, p_both boolean, p_dist int, p_day int) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.sub_is_staff() then raise exception 'permission denied'; end if;
+  update public.sub_settings set dual_grades = coalesce(p_grades, ''), dual_both_small = coalesce(p_both, true),
+         dual_max_dist = p_dist, dual_max_day = p_day, updated_at = now() where id = 1;
+end $$;
+grant execute on function public.sub_dual_save(text, boolean, int, int) to authenticated;
+
+-- 10.5 ฝ่ายวิชาการกดเตือนครูที่ยังไม่รับทราบซ้ำ — คืนจำนวนครูที่ได้รับแจ้ง
+create or replace function public.sub_renotify(p_ids uuid[]) returns int
+language plpgsql security definer set search_path = public as $$
+declare r record; n int := 0;
+begin
+  if not public.sub_is_staff() then raise exception 'permission denied'; end if;
+  for r in select substitute_teacher t, min(sub_date) d, count(*) c from public.sub_records
+            where id = any(p_ids) and status = 'confirmed' and substitute_teacher <> '' and ack_at is null
+            group by substitute_teacher loop
+    perform public.sub_notify_teacher(r.t, 'sub_assigned', 'เตือน: กรุณากดรับทราบการสอนแทน',
+      r.c || ' คาบ เริ่ม ' || public.sub_th_date(r.d) || ' (ดูที่ "สอนแทนของฉัน")', 'mysubs', 'rn:' || r.t || ':' || txid_current());
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+grant execute on function public.sub_renotify(uuid[]) to authenticated;

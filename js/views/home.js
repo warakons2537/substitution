@@ -1,6 +1,7 @@
 // หน้าแรก: สรุปตามหน้าที่ของผู้ใช้ (ครูเห็นของตัวเอง · งานบุคคล/ผอ. เห็นใบลา · ฝ่ายวิชาการเห็นคิวสอนแทน)
-import { esc, thDate, thDay, todayISO, addDays } from '../util.js';
-import { sb, q, rankData, REQ_COLS, settingsCached, periodTime } from '../db.js';
+import { $$, esc, thDate, thDay, todayISO, addDays, toast } from '../util.js';
+import { sb, q, rankData, REQ_COLS, settingsCached, periodTime, holidaySet } from '../db.js';
+import { buildItems, stripDual } from '../planner.js';
 import { icon } from '../icons.js';
 import { has, dutyText } from '../perm.js';
 import { leavesRange } from '../leaves.js';
@@ -13,12 +14,12 @@ export async function render(el, ctx) {
   const name = me.full_name || me.teacher || me.email;
   const safe = (p) => p.catch(() => []);
 
-  const set = await settingsCached();
+  const [set, holidays] = await Promise.all([settingsCached(), holidaySet().catch(() => new Map())]);
   const [rank, pendingReq, myReq, absent, waitLeaves, unsigned] = await Promise.all([
     rankData(),
     ac ? safe(q(sb.from('sub_requests').select(REQ_COLS).eq('status', 'pending').order('date_from').limit(50))) : [],
     me.teacher ? safe(q(sb.from('sub_requests').select(REQ_COLS).eq('requested_by', me.id).eq('status', 'pending'))) : [],
-    (ac || hr || dir) ? leavesRange(me, today, today) : [],
+    (ac || hr || dir) ? leavesRange(me, addDays(today, -180), today) : [],   // รวมใบลาหลายวันที่เริ่มก่อนวันนี้
     (hr || dir) ? safe(q(sb.from('sub_leaves').select('id', { count: 'exact', head: false }).eq('status', 'pending'))) : [],
     hr ? safe(q(sb.from('sub_leaves').select('id').in('status', ['approved', 'pending']).is('signed_at', null))) : [],
   ]);
@@ -31,6 +32,22 @@ export async function render(el, ctx) {
   const next = me.teacher ? recs.filter((r) => r.s === me.teacher && (r.d > today || (r.d === today && (!periodTime(set, r.p) || periodTime(set, r.p) >= hm))))
     .sort((a, b) => (a.d === b.d ? a.p - b.p : a.d < b.d ? -1 : 1))[0] : null;
   const todayAbsent = absent.filter((l) => l.status !== 'cancelled' && l.status !== 'rejected' && l.date_from <= today && l.date_to >= today);
+  // ฝ่ายวิชาการ: คาบของครูที่ลาวันนี้ที่ยังไม่มีรายการสอนแทน (จากคำขอ + ทะเบียนการลาเต็มวันที่ไม่ได้มาจากคำขอ · ไม่นับคาบที่มีครูร่วม)
+  const gaps = [];
+  if (ac && ctx.tt && !holidays.has(today)) {
+    const who = new Map();
+    for (const r of rank.requests) if (r.from <= today && today <= r.to) who.set(r.t, r.periods || []);
+    for (const l of todayAbsent) if (!l.request_id && !l.half && !who.has(l.teacher_name)) who.set(l.teacher_name, []);
+    for (const [t, periods] of who) {
+      for (const it of buildItems(ctx.tt.data, t, [today], periods)) {
+        if (it.co.length || rank.records.some((r) => r.a === t && r.d === today && r.p === it.p)) continue;
+        gaps.push({ t, ...it });
+      }
+    }
+    gaps.sort((a, b) => a.p - b.p || a.t.localeCompare(b.t, 'th'));
+  }
+  // ยังไม่รับทราบ (วันนี้-พรุ่งนี้) — ให้ฝ่ายวิชาการกดเตือนซ้ำ
+  const unackSoon = ac ? recs.filter((r) => r.s && r.i && 'k' in r && !r.k && r.d >= today && r.d <= tomorrow) : [];
 
   const stats = [];
   if (hr || dir) stats.push([waitLeaves.length, 'ใบลารออนุญาต', 'approvals', 'approvals', 1]);
@@ -54,8 +71,13 @@ export async function render(el, ctx) {
       <h1>สวัสดี ${esc(name)}</h1><p>${esc(thDay(today))} ${esc(thDate(today, { day: 'numeric', month: 'long', year: 'numeric' }))} · ${esc(dutyText(me))}</p></div>
       ${ctas.map(([h, t]) => `<a class="g-btn" href="#${h}">${t}</a>`).join('')}</header>
     ${urgent.length ? `<div class="g-note" role="status">${alertI}<span>มี ${urgent.length} คิวสอนแทนที่ต้องจัดภายในวันนี้-พรุ่งนี้ · <a href="#requests">ไปจัดเลย</a></span></div>` : ''}
-    ${next ? `<a class="g-next" href="#mysubs">${icon('remind')}<span><b>คาบสอนแทนถัดไปของคุณ: ${next.d === today ? 'วันนี้' : esc(`${thDay(next.d)} ${thDate(next.d)}`)} คาบ ${next.p}${periodTime(set, next.p) ? ` · ${periodTime(set, next.p)} น.` : ''}</b><span>แทน ${esc(next.a)}${'k' in next && !next.k ? ' · ยังไม่ได้กดรับทราบ' : ''}</span></span><span class="g-next-go" aria-hidden="true">›</span></a>` : ''}
+    ${next ? `<a class="g-next" href="#mysubs">${icon('remind')}<span><b>คาบสอนแทนถัดไปของคุณ: ${next.d === today ? 'วันนี้' : esc(`${thDay(next.d)} ${thDate(next.d)}`)} คาบ ${next.p}${periodTime(set, next.p) ? ` · ${periodTime(set, next.p)} น.` : ''}</b><span>แทน ${esc(next.a)}${stripDual(next.n || '') && !/^แลกกับคาบ/.test(next.n) ? ` · งาน: ${esc(stripDual(next.n))}` : ''}${'k' in next && !next.k ? ' · ยังไม่ได้กดรับทราบ' : ''}</span></span><span class="g-next-go" aria-hidden="true">›</span></a>` : ''}
     <div class="g-stats">${stats.map(([n, t, h, ic, hot]) => `<a class="g-stat${hot && n ? ' hot' : ''}" href="#${h}"><span class="g-stat-i">${icon(ic)}</span><b>${n}</b><span>${t}</span></a>`).join('')}</div>
+    ${gaps.length ? `<section class="g-card"><div class="g-card-h"><h3>คาบวันนี้ที่ยังไม่ได้จัดครูสอนแทน (${gaps.length})</h3><a class="g-btn" href="#assist">จัดเลย</a></div>
+      ${gaps.map((g) => `<div class="g-row"><b class="num">คาบ ${g.p}${periodTime(set, g.p) ? ` <small class="g-sub">${periodTime(set, g.p)} น.</small>` : ''}</b><span>${esc(g.t)} · ${esc(g.grade)} ${esc(g.subject)}</span></div>`).join('')}</section>` : ''}
+    ${unackSoon.length ? `<section class="g-card"><div class="g-card-h"><h3>ครูยังไม่รับทราบ (วันนี้–พรุ่งนี้ ${unackSoon.length} คาบ)</h3>
+      <button class="g-btn g-btn-line" type="button" data-renotify="${unackSoon.map((r) => r.i).join(',')}">เตือนซ้ำ</button></div>
+      ${unackSoon.sort((a, b) => (a.d === b.d ? a.p - b.p : a.d < b.d ? -1 : 1)).map((r) => `<div class="g-row"><b class="num">${r.d === today ? 'วันนี้' : 'พรุ่งนี้'} คาบ ${r.p}</b><span>${esc(r.s)} <span class="g-sub">แทน ${esc(r.a)}</span></span></div>`).join('')}</section>` : ''}
     ${(hr || dir || ac) ? `<section class="g-card"><div class="g-card-h"><h3>ครูลา/ไปราชการวันนี้</h3></div>${todayAbsent.length ? todayAbsent.map((l) => `<div class="g-row"><b>${esc(l.teacher_name)}</b>
       <span class="g-pill">${clock}<span>${l.leave_type === 'ไปราชการ' ? '' : 'ลา · '}${esc(l.leave_type)}${l.half ? ` (${l.half === 'am' ? 'เช้า' : 'บ่าย'})` : ''}</span></span></div>`).join('') : '<p class="g-empty">ไม่มีครูลาวันนี้</p>'}</section>` : ''}
     <section class="g-card"><div class="g-card-h"><h3>สอนแทนวันนี้</h3></div>${todayRecs.length ? todayRecs.map((r) => `<div class="g-row">
@@ -65,4 +87,11 @@ export async function render(el, ctx) {
       ${pendingReq.slice(0, 6).map((r) => `<div class="g-row"><span><b>${esc(r.teacher_name)}</b> · ${esc(r.leave_type)}</span>
         <span class="g-sub">${esc(dateText(r))} · ${esc(periodText(r))}</span></div>`).join('')}</section>` : ''}
   </div>`;
+  $$('[data-renotify]', el).forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      const n = await q(sb.rpc('sub_renotify', { p_ids: b.dataset.renotify.split(',') }));
+      toast(n ? `ส่งเตือนแล้ว ${n} คน` : 'ไม่มีครูที่ต้องเตือน (หรือยังไม่ได้ผูกบัญชี)');
+    } catch (e) { toast(/sub_renotify|Could not find/i.test(e.message) ? 'ยังไม่ได้รัน SQL รอบ 10' : e.message, 'err'); b.disabled = false; }
+  }));
 }

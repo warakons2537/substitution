@@ -1,9 +1,9 @@
 // ผู้ขอลา: แจ้งขอลา/ขอสอนแทน + คำขอของฉัน
 import { $, $$, esc, toast, thDate , confirmBox } from '../util.js';
-import { sb, q, rankData, REQ_COLS } from '../db.js';
+import { sb, q, rpcOr, REQ_COLS } from '../db.js';
 import { printRequest, LEAVE_FORM_TYPES } from '../print.js';
 import { mountLeaveForm } from '../leaveform.js';
-import { buildItems, mountPlanner, NONE, noteOf } from '../planner.js';
+import { buildItems, mountPlanner, NONE, noteOf, loadPlanCtx, skippedHolidays } from '../planner.js';
 import { pill, hero } from '../gui.js';
 
 export const STATUS = { pending: 'รอพิจารณา', approved: 'อนุมัติแล้ว', rejected: 'ไม่อนุมัติ', cancelled: 'ยกเลิกแล้ว' };
@@ -21,7 +21,7 @@ export async function render(el, { tt, me }) {
     <section class="g-card"><div class="g-pad"><p class="muted small">ระบบเลือกครูสอนแทนให้ เปลี่ยนได้ตามต้องการ — ที่เลือกไว้มีผลทันทีเมื่อส่ง · คาบที่เลือก "ให้ฝ่ายวิชาการจัด" ฝ่ายวิชาการจะจัดให้ภายหลัง</p>
       <div id="r-plan"></div>
       <div class="g-actions"><button class="g-btn" type="button" id="r-send" disabled>ส่งคำขอ</button></div></div></section></div>`;
-  const rank = await rankData();
+  const { rank, dual, holidays } = await loadPlanCtx();
   let plan = null; let cur = null; let lastKey = '';
   const rebuild = (v) => {
     // เปลี่ยนแค่ประเภทการลา/เหตุผล ไม่ต้องสร้างตารางใหม่ (ค่าที่เลือกไว้ไม่หาย)
@@ -29,8 +29,9 @@ export async function render(el, { tt, me }) {
     if (plan && key === lastKey) { cur = v; return; }
     lastKey = key;
     cur = v; plan = null;
-    const items = v.noneChecked ? [] : buildItems(tt.data, me.teacher, v.dates, v.periods);
-    plan = mountPlanner($('#r-plan'), { data: tt.data, rank, absent: me.teacher, items, allowEmpty: true });
+    const items = v.noneChecked ? [] : buildItems(tt.data, me.teacher, v.dates, v.periods, holidays);
+    plan = mountPlanner($('#r-plan'), { data: tt.data, rank, absent: me.teacher, items, allowEmpty: true, dual,
+      skipped: v.noneChecked ? [] : skippedHolidays(v.dates, holidays) });
     $('#r-send').disabled = !v.dates.length || v.noneChecked;
   };
   const form = mountLeaveForm($('#r-form'), { data: tt.data, fixedTeacher: me.teacher, withReason: true, onChange: rebuild,
@@ -42,18 +43,23 @@ export async function render(el, { tt, me }) {
     try {
       $('#r-send').disabled = true;
       const complete = plan.items.every((it) => it.sel);
-      const req = (await q(sb.from('sub_requests').insert({
+      const head = {
         teacher_name: me.teacher, date_from: v.from, date_to: v.to, periods: v.periods,
         leave_type: v.leave_type, reason: v.reason, contact: $('#r-contact').value.trim(),
         status: complete ? 'approved' : 'pending', decision_note: complete ? 'ผู้ขอลาเลือกครูสอนแทนเอง (มีผลทันที)' : '',
-      }).select(REQ_COLS)))[0];
+      };
       const rows = plan.items.filter((it) => it.sel).map((it) => ({
-        request_id: req.id, sub_date: it.date, academic_year: tt.academic_year, term: tt.term, period: it.p,
+        sub_date: it.date, academic_year: tt.academic_year, term: tt.term, period: it.p,
         absent_teacher: me.teacher, leave_type: v.leave_type, grade: it.grade, subject: it.subject,
         substitute_teacher: it.sel === NONE ? '' : it.sel, note: noteOf(it),
         status: 'confirmed', source: 'request',
       }));
-      if (rows.length) await q(sb.from('sub_records').insert(rows));
+      // บันทึกคำขอและรายการสอนแทนในคำสั่งเดียว (SQL รอบ 10) — ยังไม่รัน: ใช้วิธีเดิมทีละขั้น
+      const req = await rpcOr('sub_submit_request', { p_req: head, p_rows: rows }, async () => {
+        const r = (await q(sb.from('sub_requests').insert(head).select(REQ_COLS)))[0];
+        if (rows.length) await q(sb.from('sub_records').insert(rows.map((x) => ({ ...x, request_id: r.id }))));
+        return r;
+      });
       toast(complete ? 'บันทึกการลาและการสอนแทนแล้ว' : 'ส่งแล้ว คาบที่ยังไม่ได้เลือก ฝ่ายวิชาการจะจัดให้');
       location.hash = '#mine';
       printRequest(req, me);
@@ -74,8 +80,11 @@ export async function renderMine(el, { me }) {
   $$('[data-cancel]', el).forEach((b) => b.addEventListener('click', async () => {
     if (!(await confirmBox('ยกเลิกคำขอนี้?')) ) return;
     try {
-      await q(sb.from('sub_records').delete().eq('request_id', b.dataset.cancel));
-      await q(sb.from('sub_requests').update({ status: 'cancelled' }).eq('id', b.dataset.cancel));
+      const id = b.dataset.cancel;
+      await rpcOr('sub_cancel_request', { p_id: id }, async () => {
+        await q(sb.from('sub_records').delete().eq('request_id', id));
+        await q(sb.from('sub_requests').update({ status: 'cancelled' }).eq('id', id));
+      });
       toast('ยกเลิกแล้ว'); renderMine(el, { me });
     } catch (e) { toast(e.message, 'err'); }
   }));
