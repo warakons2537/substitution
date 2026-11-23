@@ -59,9 +59,11 @@ function makeRanker(data, rank, absent, excludeRequest) {
     return pool.map((n) => {
       const reasons = [];
       // มีสอนคาบนี้อยู่: ห้องเล็กรับสอนแทนพร้อมกันได้ (คาบคู่) · ห้องอื่นถือว่าไม่ว่าง
-      const busy = slotsOf(data, n, item.d).some((s) => s.p === item.p);
+      const now = slotsOf(data, n, item.d).filter((s) => s.p === item.p);
+      const busy = now.length > 0;
       const dual = busy && small;
-      if (busy && !small) reasons.push('มีสอนคาบนี้');
+      const teaching = now.map((s) => `${gradeLabel(s)}${s.subject ? ' ' + s.subject : ''}`).join(', ');
+      if (busy && !small) reasons.push(`มีสอนคาบนี้ (${teaching})`);
       if (onLeave(n, item.date, item.p)) reasons.push('ลา/ไม่อยู่');
       if (done.some((x) => x.n === n && x.d === item.date && x.p === item.p)) reasons.push('สอนแทนคาบนี้แล้ว');
       const own = done.filter((x) => x.n === n);
@@ -70,14 +72,14 @@ function makeRanker(data, rank, absent, excludeRequest) {
       const month = own.filter((x) => x.d.slice(0, 7) === mon).length;
       const b = where(n, item.d, item.p); const ti = order.indexOf(b);
       const dist = bi < 0 || ti < 0 ? 9 : Math.abs(bi - ti);
-      return { n, ok: !reasons.length, reasons, dual: dual ? 1 : 0, soft: proposed.has(n) ? 1 : 0, dist, b, week, day,
+      return { n, ok: !reasons.length, reasons, dual: dual ? 1 : 0, teaching, soft: proposed.has(n) ? 1 : 0, dist, b, week, day,
         load: slotsOf(data, n, item.d).length + day, month, total: own.length };
     }).sort((a, b) => (b.ok - a.ok) || (a.dual - b.dual) || (a.soft - b.soft) || (a.dist - b.dist) || (a.week - b.week) || (a.day - b.day)
       || (a.load - b.load) || (a.month - b.month) || (a.total - b.total) || a.n.localeCompare(b.n, 'th'));
   };
 }
 
-const label = (c) => `${c.n} · ${c.dist === 0 ? 'ตึกเดียวกัน' : (c.b || 'ไม่ทราบตึก')} · สัปดาห์นี้ ${c.week} ครั้ง · วันนี้ ${c.load} คาบ${c.dual ? ' · คาบคู่ (มีสอนคาบนี้อยู่)' : ''}${c.soft ? ' · มีคำขออื่นเสนอไว้' : ''}`;
+const label = (c) => `${c.n} · ${c.dist === 0 ? 'ตึกเดียวกัน' : (c.b || 'ไม่ทราบตึก')} · สัปดาห์นี้ ${c.week} ครั้ง · วันนี้ ${c.load} คาบ${c.dual ? ` · คาบคู่ (คาบนี้สอน ${c.teaching || '-'} อยู่)` : ''}${c.soft ? ' · มีคำขออื่นเสนอไว้' : ''}`;
 
 /**
  * แสดงตารางคาบที่ต้องสอนแทนพร้อมตัวเลือกครู
@@ -102,7 +104,7 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
         const cur = list.find((c) => c.n === it.sel);
         it.dual = !!(cur && cur.dual);
         const warn = cur && !cur.ok ? `<div class="warn small">⚠ ${esc(cur.reasons.join(', '))}</div>`
-          : it.dual ? `<div class="g-note small">ⓘ ${esc(cur.n)} มีสอนคาบนี้อยู่แล้ว · รับสอนแทนพร้อมกันได้ (นักเรียน ${esc(it.grade)} มีจำนวนน้อย)</div>` : '';
+          : it.dual ? `<div class="g-note small">ⓘ ${esc(cur.n)} คาบนี้สอน ${esc(cur.teaching)} อยู่แล้ว · รับสอนแทนพร้อมกันได้ (นักเรียน ${esc(it.grade)} มีจำนวนน้อย)</div>` : '';
         const coNote = it.co.length ? `<div class="muted small">ครูร่วม: ${esc(it.co.join(', '))}</div>` : '';
         return `<tr><td>${esc(thDay(it.date))} ${esc(thDate(it.date))}</td><td class="c">${it.p}</td>
           <td>${esc(it.grade)}</td><td>${esc(it.subject)}${coNote}</td>
