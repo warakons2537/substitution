@@ -10,7 +10,7 @@ import { rankData, settingsCached, holidaySet } from './db.js';
 
 export const NONE = '__none';
 
-// คาบคู่: ห้องที่นักเรียนน้อย ครูที่มีสอนคาบนั้นอยู่แล้วรับสอนแทนพร้อมกันได้ · กติกาตั้งได้ที่เมนู "กติกาคาบคู่" (sub_settings.dual_*)
+// คาบคู่: ห้องที่นักเรียนน้อย ครูที่มีสอน/สอนแทนคาบนั้นอยู่แล้ว 1 ห้องรับสอนแทนอีกห้องพร้อมกันได้ (รวมไม่เกิน 2 ห้อง) · กติกาตั้งได้ที่เมนู "กติกาคาบคู่" (sub_settings.dual_*)
 export const DUAL_DEFAULT = { grades: ['ป1', 'ป2', 'ป3', 'ป4', 'ม2', 'ม3'], bothSmall: true, maxDist: null, maxDay: 2 };
 /** กติกาคาบคู่จากตั้งค่า (ยังไม่รัน SQL รอบ 10 = ค่าตั้งต้น) */
 export const dualRules = (set = {}) => ({
@@ -73,6 +73,12 @@ export function makeRanker(data, rank, absent, excludeRequest, dual = DUAL_DEFAU
     return l ? (l.h ? `ลาครึ่งวัน${l.h === 'am' ? 'เช้า' : 'บ่าย'}` : 'ลา/ไม่อยู่') : '';
   };
 
+  // ห้องของคาบที่ครู a ลา (หาจากตารางสอน เพราะข้อมูลจัดอันดับไม่มีชั้นเรียน)
+  const roomOf = (a, d, p) => {
+    const s = slotsOf(data, a, d).find((x) => x.p === p);
+    return s ? { grades: s.grades, building: s.building, label: `${gradeLabel(s)}${s.subject ? ' ' + s.subject : ''}` } : { grades: [], building: '', label: '' };
+  };
+
   const where = (n, d, p) => {
     const ss = slotsOf(data, n, d).sort((a, b) => Math.abs(a.p - p) - Math.abs(b.p - p) || a.p - b.p);
     if (ss.length && ss[0].building) return ss[0].building;
@@ -81,8 +87,9 @@ export function makeRanker(data, rank, absent, excludeRequest, dual = DUAL_DEFAU
   };
 
   return (item, items) => {
-    const mine = items.filter((x) => x !== item && x.sel && x.sel !== NONE).map((x) => ({ n: x.sel, d: x.date, p: x.p, du: !!x.dual }));
-    const done = recs.filter((r) => r.s && r.st === 'confirmed').map((r) => ({ n: r.s, d: r.d, p: r.p, du: !!r.du, sw: r.lt === SWAP })).concat(mine);
+    const mine = items.filter((x) => x !== item && x.sel && x.sel !== NONE)
+      .map((x) => ({ n: x.sel, d: x.date, p: x.p, du: !!x.dual, a: absent, room: { grades: x.grades, building: x.building, label: `${x.grade}${x.subject ? ' ' + x.subject : ''}` } }));
+    const done = recs.filter((r) => r.s && r.st === 'confirmed').map((r) => ({ n: r.s, d: r.d, p: r.p, du: !!r.du, sw: r.lt === SWAP, a: r.a })).concat(mine);
     const proposed = new Set(recs.filter((r) => r.s && r.st === 'proposed' && r.d === item.date && r.p === item.p).map((r) => r.s));
     const ws = weekStart(item.date); const we = addDays(ws, 6); const mon = item.date.slice(0, 7);
     const bi = order.indexOf(item.building);
@@ -92,23 +99,31 @@ export function makeRanker(data, rank, absent, excludeRequest, dual = DUAL_DEFAU
       const reasons = [];
       const b = where(n, item.d, item.p); const ti = order.indexOf(b);
       const dist = bi < 0 || ti < 0 ? 9 : Math.abs(bi - ti);
-      // มีสอนคาบนี้อยู่ (ยกเว้นแลกคาบออกไปแล้ว): ห้องเล็กรับสอนแทนพร้อมกันได้ (คาบคู่) ตามกติกา · นอกนั้นถือว่าไม่ว่าง
-      const now = swappedOut(n, item.date, item.p) ? [] : slotsOf(data, n, item.d).filter((s) => s.p === item.p);
-      const busy = now.length > 0;
-      const teaching = now.map((s) => `${gradeLabel(s)}${s.subject ? ' ' + s.subject : ''}`).join(', ');
+      // ห้องที่ครูคนนี้ต้องอยู่คาบนี้แล้ว: คาบสอนของตัวเอง (ยกเว้นแลกคาบออกไป) + ห้องที่รับสอนแทน/แลกคาบมาแล้ว
+      //   ว่าง = แนะนำปกติ · 1 ห้อง = รับห้องนี้พร้อมกันได้ถ้าเป็นห้องนักเรียนน้อยตามกติกา (คาบคู่) · 2 ห้อง = เต็ม
       const own = done.filter((x) => x.n === n);
+      const subs = own.filter((x) => x.d === item.date && x.p === item.p);
+      const rooms = (swappedOut(n, item.date, item.p) ? [] : slotsOf(data, n, item.d).filter((s) => s.p === item.p)
+        .map((s) => ({ grades: s.grades, building: s.building, label: `${gradeLabel(s)}${s.subject ? ' ' + s.subject : ''}` })))
+        .concat(subs.map((x) => {
+          const r = x.room || roomOf(x.a, item.d, item.p);
+          return { ...r, sub: true, sw: x.sw, label: `${r.label || '?'} (${x.sw ? 'แลกคาบ' : 'สอนแทน'}${x.a ? ' ' + x.a : ''})` };
+        }));
+      const teaching = rooms.map((r) => r.label).join(', ');
       let isDual = false;
-      if (busy) {
-        const why = !small ? '' : dual.bothSmall && !now.every((s) => isSmallClass(s.grades, dual.grades)) ? 'ห้องที่สอนอยู่ไม่ใช่ห้องเล็ก'
-          : dual.maxDist != null && dist > dual.maxDist ? 'อยู่คนละตึก'
+      if (rooms.length >= 2) reasons.push(`สอนคาบนี้ครบ 2 ห้องแล้ว (${teaching})`);
+      else if (rooms.length === 1) {
+        const r = rooms[0]; const ri = order.indexOf(r.building);
+        const rd = r.sub ? (bi < 0 || ri < 0 ? 9 : Math.abs(bi - ri)) : dist;
+        const why = !small ? '' : r.sw ? 'แลกคาบมาสอนคาบนี้แล้ว'
+          : (r.sub || dual.bothSmall) && !isSmallClass(r.grades, dual.grades) ? 'ห้องที่สอนอยู่ไม่ใช่ห้องเล็ก'
+          : dual.maxDist != null && rd > dual.maxDist ? 'อยู่คนละตึก'
           : dual.maxDay != null && own.filter((x) => x.d === item.date && x.du).length >= dual.maxDay ? `รับคาบคู่ครบ ${dual.maxDay} คาบแล้ววันนี้` : 'ok';
         if (why === 'ok') isDual = true;
-        else reasons.push(`มีสอนคาบนี้ (${teaching})${why ? ' · ' + why : ''}`);
+        else reasons.push(`${r.sub ? 'สอนแทนคาบนี้แล้ว' : 'มีสอนคาบนี้'} (${teaching})${why ? ' · ' + why : ''}`);
       }
       const away = onLeave(n, item.date, item.p);
       if (away) reasons.push(away);
-      const here = own.find((x) => x.d === item.date && x.p === item.p);
-      if (here) reasons.push(here.sw ? 'แลกคาบมาสอนคาบนี้แล้ว' : 'สอนแทนคาบนี้แล้ว');
       const fair = own.filter((x) => !x.sw);   // แลกคาบไม่นับในความเป็นธรรม
       const week = fair.filter((x) => x.d >= ws && x.d <= we).length;
       const day = fair.filter((x) => x.d === item.date).length;
@@ -147,7 +162,7 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
         it.dual = !!(cur && cur.dual);
         it.teaching = it.dual ? cur.teaching : '';
         const warn = cur && !cur.ok ? `<div class="warn small">⚠ ${esc(cur.reasons.join(', '))}</div>`
-          : it.dual ? `<div class="g-note small">ⓘ ${esc(cur.n)} คาบนี้สอน ${esc(cur.teaching)} อยู่แล้ว · รับสอนแทนพร้อมกันได้ (นักเรียน ${esc(it.grade)} มีจำนวนน้อย)</div>` : '';
+          : it.dual ? `<div class="g-note small">ⓘ ${esc(cur.n)} คาบนี้สอน ${esc(cur.teaching)} อยู่แล้ว · รับสอนแทนพร้อมกันได้ (รวม 2 ห้อง) (นักเรียน ${esc(it.grade)} มีจำนวนน้อย)</div>` : '';
         const coNote = it.co.length ? `<div class="muted small">ครูร่วม: ${esc(it.co.join(', '))}</div>` : '';
         return `<tr><td>${esc(thDay(it.date))} ${esc(thDate(it.date))}</td><td class="c">${it.p}</td>
           <td>${esc(it.grade)}</td><td>${esc(it.subject)}${coNote}</td>
@@ -157,7 +172,7 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
             <optgroup label="แนะนำ (เรียงตามลำดับ)">
               ${list.filter((c) => c.ok && !c.dual).map((c) => `<option value="${esc(c.n)}"${c.n === it.sel ? ' selected' : ''}>${esc(label(c))}</option>`).join('')}
             </optgroup>
-            ${list.some((c) => c.ok && c.dual) ? `<optgroup label="คาบคู่ — มีสอนคาบนี้อยู่ แต่รับสอนแทนได้ (ห้องนักเรียนน้อย)">
+            ${list.some((c) => c.ok && c.dual) ? `<optgroup label="คาบคู่ — มีสอน/สอนแทนคาบนี้อยู่ 1 ห้อง รับเพิ่มได้ (ห้องนักเรียนน้อย)">
               ${list.filter((c) => c.ok && c.dual).map((c) => `<option value="${esc(c.n)}"${c.n === it.sel ? ' selected' : ''}>${esc(label(c))}</option>`).join('')}
             </optgroup>` : ''}
             <optgroup label="ไม่ว่าง">

@@ -93,6 +93,17 @@ await t('ครูสอนแทนซ้อนคาบ -> ย้อนกล�
   assert.equal((await sys('select count(*)::int c from public.sub_requests'))[0].c, before);
 });
 
+await t('รอบ 11: ครูว่างสอนแทน 2 ห้องในคาบเดียวกันได้เมื่อรายการที่ 2 เป็นคาบคู่ · ห้องที่ 3 ไม่ได้', async () => {
+  const D9 = day(20);
+  const ins = (absent, note) => sys(`insert into public.sub_records (sub_date, academic_year, term, period, absent_teacher, substitute_teacher, note)
+    values ($1, 2569, 2, 3, $2, 'ครูจ', $3)`, [D9, absent, note]);
+  await ins('ครูก', '');
+  await assert.rejects(ins('ครูง', 'ทำใบงาน'), /sub_records_no_double/);
+  await ins('ครูง', 'คาบคู่ (สอน ป.2/1 คณิต อยู่)');
+  await assert.rejects(ins('ครูข', 'คาบคู่'), /sub_records_no_double/);
+  await sys('delete from public.sub_records where sub_date = $1', [D9]);
+});
+
 await t('อนุมัติ: คาบที่ครูคนเดิมยังรับทราบอยู่ · เปลี่ยนตัว = แจ้งยกเลิกคนเดิม + แจ้งคนใหม่ · สลับตัวสองคาบได้', async () => {
   const ids = (await sys('select id from public.sub_records where request_id = $1 and substitute_teacher = $2', [reqId, 'ครูข'])).map((x) => x.id);
   await as('kb', 'select public.sub_ack($1)', [ids]);

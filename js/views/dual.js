@@ -21,7 +21,7 @@ export async function render(el, ctx) {
         ${[['', 'ไม่จำกัด'], ['0', 'ตึกเดียวกันเท่านั้น'], ['1', '1 ตึก (ตึกติดกัน)'], ['2', '2 ตึก']].map(([v, t]) => `<option value="${v}"${String(r.maxDist ?? '') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
       <label>รับคาบคู่ได้ไม่เกิน (คาบ/คน/วัน)<select name="day">
         ${[['', 'ไม่จำกัด'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']].map(([v, t]) => `<option value="${v}"${String(r.maxDay ?? '') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
-      <p class="g-sub span-all">ระยะตึกนับตามลำดับตึกใน WL Scheduler · ครูที่ไม่ทราบตึกถือว่าอยู่ไกล · ครูคาบคู่จะไม่ถูกเลือกให้อัตโนมัติ ผู้จัดต้องเลือกเอง</p>
+      <p class="g-sub span-all">ระยะตึกนับตามลำดับตึกใน WL Scheduler · ครูที่ไม่ทราบตึกถือว่าอยู่ไกล · ครูคาบคู่จะไม่ถูกเลือกให้อัตโนมัติ ผู้จัดต้องเลือกเอง · ครูว่างที่สอนแทนห้องเล็กอยู่แล้ว 1 ห้อง รับห้องเล็กเพิ่มได้อีก 1 ห้อง (รวมไม่เกิน 2 ห้องต่อคาบ · SQL รอบ 11)</p>
       <div class="g-actions"><button class="g-btn" type="submit" ${ready ? '' : 'disabled'}>บันทึก</button></div>
     </form></div></section></div>`;
   $('#du-form', el).addEventListener('submit', async (e) => {

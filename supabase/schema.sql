@@ -1196,3 +1196,29 @@ begin
   return n;
 end $$;
 grant execute on function public.sub_renotify(uuid[]) to authenticated;
+
+-- =====================================================================
+--  รอบ 11: ครูว่างรับสอนแทนห้องนักเรียนน้อยได้ทีละ 2 ห้อง (2 ครูที่ลา) ในคาบเดียวกัน
+--  แทน unique index เดิม: ครู 1 คนมีรายการสอนแทนได้ไม่เกิน 2 รายการต่อคาบ และรายการที่ 2 ต้องเป็นคาบคู่ (หมายเหตุขึ้นต้นด้วย "คาบคู่")
+--  (ตัวช่วยจัดในหน้าเว็บตรวจเรื่องห้องเล็ก/ระยะตึก/จำนวนต่อวันตามกติกาคาบคู่ก่อนบันทึก)
+-- =====================================================================
+drop index if exists public.sub_records_no_double;
+
+create or replace function public.sub_records_check_double() returns trigger
+language plpgsql security definer set search_path = public as $$   -- ต้องเห็นทุกแถว (ไม่ติด RLS ของผู้บันทึก)
+declare n int; d int;
+begin
+  if new.substitute_teacher = '' or new.status <> 'confirmed' then return new; end if;
+  perform pg_advisory_xact_lock(hashtext('sub2:' || new.substitute_teacher || new.sub_date || ':' || new.period));
+  select count(*), count(*) filter (where note like 'คาบคู่%') into n, d from public.sub_records
+   where sub_date = new.sub_date and period = new.period and substitute_teacher = new.substitute_teacher
+     and status = 'confirmed' and id <> new.id;
+  if n >= 2 or (n = 1 and d = 0 and new.note not like 'คาบคู่%') then
+    raise exception 'sub_records_no_double: % สอนแทนคาบนี้แล้ว', new.substitute_teacher using errcode = '23505';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists sub_records_check_double on public.sub_records;
+create trigger sub_records_check_double before insert or update of sub_date, period, substitute_teacher, status, note
+  on public.sub_records for each row execute function public.sub_records_check_double();

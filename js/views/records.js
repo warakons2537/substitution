@@ -32,15 +32,23 @@ export async function render(el, ctx) {
   const slotAt = (n, date, p) => slotsOf(tt.data, n, dowIndex(date)).find((x) => x.p === p);
   const swappedOut = (n, date, p, except = []) => rank.records.some((r) => r.lt === SWAP && r.st === 'confirmed' && r.a === n && r.d === date && r.p === p && !except.includes(r.i));
   /** ตรวจว่าครู n ไปสอนคาบ date/p ได้ไหม: hard = ห้ามบันทึก · warn = เตือนก่อนบันทึก */
-  const check = (n, date, p, except = []) => {
-    const hard = []; const warn = [];
-    if (rank.records.some((r) => r.st === 'confirmed' && r.s === n && r.d === date && r.p === p && !except.includes(r.i))) hard.push(`${n} มีรายการสอนแทน/แลกคาบในคาบนี้อยู่แล้ว`);
+  //   ครูว่างที่สอนแทนคาบนี้อยู่แล้ว 1 ห้อง รับเพิ่มได้อีก 1 ห้อง (คาบคู่ · dualWith = ห้องเดิม) · เกิน 2 ห้องไม่ได้
+  const check = (n, date, p, except = [], allowDual = false) => {
+    const hard = []; const warn = []; let dualWith = '';
+    const subs = rank.records.filter((r) => r.st === 'confirmed' && r.s === n && r.d === date && r.p === p && !except.includes(r.i));
     const own = slotAt(n, date, p);
-    if (own && !swappedOut(n, date, p, except)) warn.push(`${n} มีสอน ${gradeLabel(own)} ${own.subject} คาบนี้ตามตาราง`);
+    const teach = own && !swappedOut(n, date, p, except);
+    if (subs.length && (!allowDual || teach || subs.length >= 2 || subs[0].lt === SWAP)) hard.push(`${n} มีรายการสอนแทน/แลกคาบในคาบนี้อยู่แล้ว`);
+    else if (subs.length) {
+      const s = slotAt(subs[0].a, date, p);
+      dualWith = `${s ? `${gradeLabel(s)} ${s.subject} ` : ''}(สอนแทน ${subs[0].a})`;
+      warn.push(`${n} สอนแทน ${dualWith} คาบนี้อยู่แล้ว — จะบันทึกเป็นคาบคู่ (สอน 2 ห้องพร้อมกัน ใช้กับห้องนักเรียนน้อย)`);
+    }
+    if (teach) warn.push(`${n} มีสอน ${gradeLabel(own)} ${own.subject} คาบนี้ตามตาราง`);
     if (rank.records.some((r) => r.st === 'confirmed' && r.a === n && r.d === date && r.p === p && r.lt !== SWAP && !except.includes(r.i))
       || rank.requests.some((x) => x.t === n && x.from <= date && date <= x.to && (!x.periods?.length || x.periods.includes(p)))
       || rank.leaves.some((x) => x.t === n && x.from <= date && date <= x.to)) warn.push(`${n} ลา/ไม่อยู่ในวัน/คาบนี้`);
-    return { hard, warn };
+    return { hard, warn, dualWith };
   };
   const ask = (warn) => confirmBox(`โปรดตรวจสอบ: ${warn.join(' · ')} — บันทึกต่อหรือไม่?`, 'บันทึกต่อ');
 
@@ -105,9 +113,10 @@ export async function render(el, ctx) {
     const warn = [];
     if (!slotAt(row.absent_teacher, row.sub_date, row.period)) warn.push(`${row.absent_teacher} ไม่มีสอนคาบนี้ตามตารางสอน`);
     if (row.substitute_teacher) {
-      const c = check(row.substitute_teacher, row.sub_date, row.period, v.id ? [v.id] : []);
+      const c = check(row.substitute_teacher, row.sub_date, row.period, v.id ? [v.id] : [], row.leave_type !== SWAP);
       if (c.hard.length) { toast(c.hard.join(' · '), 'err'); return; }
       warn.push(...c.warn);
+      if (c.dualWith && !row.note.startsWith('คาบคู่')) row.note = `คาบคู่ (สอน ${c.dualWith} อยู่)${row.note ? ` · ${row.note}` : ''}`;
     }
     if (warn.length && !(await ask(warn))) return;
     try {

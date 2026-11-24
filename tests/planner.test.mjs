@@ -97,6 +97,26 @@ t('ครูที่ลา (คำขอ/ทะเบียนการลา) 
   assert.equal(c['ครูจ'].ok, false); assert.match(c['ครูจ'].reasons.join(), /ลา\/ไม่อยู่/);
 });
 
+t('ครูว่างสอนแทนห้องเล็กได้ทีละ 2 ห้อง (2 ครูที่ลา) · ห้องใหญ่ไม่ได้ · เกิน 2 ห้องไม่ได้', () => {
+  const it = item();
+  const rec = (a, s = 'ครูจ', extra = {}) => ({ d: MON, p: 1, a, s, st: 'confirmed', ...extra });
+  // ครูจ สอนแทนครูข (ป.3/1 ห้องเล็ก) อยู่แล้ว -> รับ ป.2/1 ของครูก เพิ่มได้เป็นคาบคู่
+  let c = byName(makeRanker(data, { records: [rec('ครูข')], requests: [] }, 'ครูก', null)(it, [it]));
+  assert.equal(c['ครูจ'].ok, true); assert.equal(c['ครูจ'].dual, 1); assert.match(c['ครูจ'].teaching, /ป\.3\/1 ไทย \(สอนแทน ครูข\)/);
+  // ห้องที่สอนแทนอยู่เป็นห้องใหญ่ (ม.1/1) -> ไม่ได้ แม้ปิด "ต้องเล็กทั้งคู่"
+  c = byName(makeRanker(data, { records: [rec('ครูค')], requests: [] }, 'ครูก', null, { ...DUAL_DEFAULT, bothSmall: false })(it, [it]));
+  assert.equal(c['ครูจ'].ok, false); assert.match(c['ครูจ'].reasons[0], /สอนแทนคาบนี้แล้ว.*ไม่ใช่ห้องเล็ก/);
+  // ครบ 2 ห้องแล้ว
+  c = byName(makeRanker(data, { records: [rec('ครูข'), rec('ครูง', 'ครูจ', { du: true })], requests: [] }, 'ครูก', null)(it, [it]));
+  assert.equal(c['ครูจ'].ok, false); assert.match(c['ครูจ'].reasons[0], /ครบ 2 ห้อง/);
+  // ครูที่มีสอนห้องตัวเอง + สอนแทนอีก 1 ห้องแล้ว = เต็ม
+  c = byName(makeRanker(data, { records: [rec('ครูค', 'ครูข', { du: true })], requests: [] }, 'ครูก', null, { ...DUAL_DEFAULT, bothSmall: false })(it, [it]));
+  assert.equal(c['ครูข'].ok, false); assert.match(c['ครูข'].reasons[0], /ครบ 2 ห้อง/);
+  // ตัวช่วยจัดเลือกอัตโนมัติไม่เลือกคาบคู่ (ครูว่างจริงมาก่อน)
+  c = makeRanker(data, { records: [rec('ครูข')], requests: [] }, 'ครูก', null)(it, [it]);
+  assert.equal(c.find((x) => x.ok && !x.dual)?.n !== 'ครูจ', true);
+});
+
 t('หมายเหตุคาบคู่: ใส่ชั้น/วิชา และตัดออกตอนแก้', () => {
   const it = { dual: true, sel: 'ครูข', teaching: 'ป.3/1 ไทย (เพิ่มเติม)', note: 'ทำใบงาน' };
   assert.equal(noteOf(it), 'คาบคู่ (สอน ป.3/1 ไทย (เพิ่มเติม) อยู่) · ทำใบงาน');

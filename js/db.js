@@ -5,7 +5,7 @@ export const sb = window.supabase.createClient(SUPABASE_URL.trim(), SUPABASE_KEY
 const TH = [
   [/Invalid login credentials/i, 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'],
   [/Email not confirmed/i, 'บัญชีนี้ยังไม่ได้ยืนยันอีเมล'],
-  [/sub_records_no_double/i, 'มีครูถูกจัดสอนแทน 2 ห้องในคาบเดียวกัน กรุณาเลือกใหม่'],
+  [/sub_records_no_double/i, 'มีครูถูกจัดสอนแทนซ้อนในคาบเดียวกัน (สอนพร้อมกันได้ไม่เกิน 2 ห้อง และต้องเป็นคาบคู่ห้องนักเรียนน้อย · ถ้ายังไม่ได้รัน SQL รอบ 11 จะยังรับได้แค่ 1 ห้อง) กรุณาเลือกใหม่'],
   [/sub_users_user_id_fkey/i, 'บัญชีนี้ยังไม่ได้สมัคร/เข้าสู่ระบบ จึงยังกำหนดสิทธิ์ไม่ได้ ให้เจ้าของสมัครหรือเข้าสู่ระบบก่อน'],
   [/row-level security|permission denied/i, 'ไม่มีสิทธิ์ทำรายการนี้'],
   [/Failed to fetch|NetworkError/i, 'เชื่อมต่อฐานข้อมูลไม่ได้ ตรวจสอบอินเทอร์เน็ต'],
