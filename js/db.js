@@ -55,7 +55,16 @@ export async function rpcOr(name, args, fallback) {
 /** ข้อมูลจัดอันดับ/สถิติ: รายการสอนแทนตั้งแต่ from (ว่าง = 400 วันย้อนหลัง) + คำขอที่ยังมีผล */
 export async function rankData(from = null) {
   const d = await rpcOr('sub_rank_data', from ? { p_from: from } : {}, () => q(sb.rpc('sub_rank_data')));
-  return { records: d?.records || [], requests: d?.requests || [] };
+  // ทะเบียนการลา (SQL รอบ 10) · ยังไม่รัน: อ่านเท่าที่สิทธิ์อนุญาต (ฝ่ายวิชาการเห็นทุกคน · ครูเห็นของตัวเอง)
+  let leaves = d?.leaves;
+  if (!leaves) {
+    const now = new Date(); const iso = (x) => x.toISOString().slice(0, 10);
+    const lo = new Date(now); lo.setDate(lo.getDate() - 400); const hi = new Date(now); hi.setDate(hi.getDate() + 400);
+    leaves = await q(sb.rpc('sub_leave_public', { p_from: from || iso(lo), p_to: iso(hi) }))
+      .then((rows) => rows.filter((l) => ['pending', 'approved'].includes(l.status)).map((l) => ({ t: l.teacher_name, from: l.date_from, to: l.date_to, h: l.half || '' })))
+      .catch(() => []);
+  }
+  return { records: d?.records || [], requests: d?.requests || [], leaves };
 }
 
 /** วันหยุดที่ตั้งไว้ (ชุดวันที่ 'YYYY-MM-DD') — จำไว้ 5 นาที */

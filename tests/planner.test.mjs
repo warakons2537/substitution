@@ -84,6 +84,19 @@ t('แลกคาบ: ไม่นับในความเป็นธรร
   assert.equal(c['ครูจ'].week, 1);                                      // นับเฉพาะคาบที่ไม่ใช่แลกคาบ
 });
 
+t('ครูที่ลา (คำขอ/ทะเบียนการลา) ไม่อยู่ในกลุ่มคาบคู่ แม้มีสอนห้องเล็กคาบนั้น', () => {
+  const it = item();
+  // ครูข ลาจากคำขอ
+  let c = byName(makeRanker(data, { records: [], requests: [{ id: 'x', t: 'ครูข', from: MON, to: MON, periods: [] }] }, 'ครูก', null)(it, [it]));
+  assert.equal(c['ครูข'].ok, false); assert.equal(c['ครูข'].dual, 0);
+  // ครูข ลาจากทะเบียนการลา (ไม่มีคำขอ) · ครึ่งวัน
+  c = byName(makeRanker(data, { records: [], requests: [], leaves: [{ t: 'ครูข', from: MON, to: MON, h: 'am' }] }, 'ครูก', null)(it, [it]));
+  assert.equal(c['ครูข'].ok, false); assert.equal(c['ครูข'].dual, 0); assert.match(c['ครูข'].reasons.join(), /ลาครึ่งวันเช้า/);
+  // ครูจ (ว่าง) ลาในทะเบียน -> ไม่อยู่ในรายชื่อแนะนำ
+  c = byName(makeRanker(data, { records: [], requests: [], leaves: [{ t: 'ครูจ', from: '2026-11-20', to: '2026-11-25', h: '' }] }, 'ครูก', null)(it, [it]));
+  assert.equal(c['ครูจ'].ok, false); assert.match(c['ครูจ'].reasons.join(), /ลา\/ไม่อยู่/);
+});
+
 t('หมายเหตุคาบคู่: ใส่ชั้น/วิชา และตัดออกตอนแก้', () => {
   const it = { dual: true, sel: 'ครูข', teaching: 'ป.3/1 ไทย (เพิ่มเติม)', note: 'ทำใบงาน' };
   assert.equal(noteOf(it), 'คาบคู่ (สอน ป.3/1 ไทย (เพิ่มเติม) อยู่) · ทำใบงาน');

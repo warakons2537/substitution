@@ -126,6 +126,12 @@ await t('sub_rank_data: ครูทั่วไปไม่เห็นรห�
   assert.ok(mine.records.every((r) => 'du' in r && 'lt' in r));
   const [{ j: kb }] = await as('kb', 'select public.sub_rank_data() j');
   assert.ok(kb.records.filter((r) => r.s === 'ครูข').every((r) => 'i' in r && 'n' in r), 'ของตัวเองมีรหัส (กดรับทราบได้) และงานที่มอบหมาย');
+  // ทะเบียนการลาที่ไม่มีคำขอ (งานบุคคลบันทึกแทน) ต้องอยู่ในข้อมูลจัดอันดับ — มีแค่ใคร/วัน/ครึ่งวัน
+  await sys(`insert into public.sub_leaves (teacher_name, leave_type, date_from, date_to, reason) values ('ครูค', 'ลาป่วย', $1, $1, 'ไข้')`, [D1]);
+  const [{ j: m2 }] = await as('other', 'select public.sub_rank_data() j');
+  const lv = m2.leaves.find((l) => l.t === 'ครูค');
+  assert.ok(lv && lv.from === D1, 'มีทะเบียนการลา');
+  assert.deepEqual(Object.keys(lv).sort(), ['from', 'h', 't', 'to'], 'ไม่มีประเภท/เหตุผล');
   const [{ j: ac }] = await as('academic', 'select public.sub_rank_data($1::date) j', [day(30)]);
   assert.equal(ac.records.length, 0, 'ตัดตามวันเริ่ม');
   assert.equal(ac.requests.length, 0);

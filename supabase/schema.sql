@@ -1158,7 +1158,10 @@ begin
       from public.sub_records where sub_date >= lo), '[]'::jsonb),
     'requests', coalesce((select jsonb_agg(jsonb_build_object(
         'id', id, 't', teacher_name, 'from', date_from, 'to', date_to, 'periods', periods))
-      from public.sub_requests where status in ('pending', 'approved') and date_to >= lo), '[]'::jsonb));
+      from public.sub_requests where status in ('pending', 'approved') and date_to >= lo), '[]'::jsonb),
+    -- ทะเบียนการลา (รวมที่บันทึกโดยไม่มีคำขอ) — ใคร/ช่วงวัน/ครึ่งวัน เท่านั้น ไม่มีประเภท/เหตุผล
+    'leaves', coalesce((select jsonb_agg(jsonb_build_object('t', teacher_name, 'from', date_from, 'to', date_to, 'h', half))
+      from public.sub_leaves where status in ('pending', 'approved') and date_to >= lo), '[]'::jsonb));
 end $$;
 grant execute on function public.sub_rank_data(date) to authenticated;
 

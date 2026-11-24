@@ -38,7 +38,8 @@ export async function render(el, ctx) {
     const own = slotAt(n, date, p);
     if (own && !swappedOut(n, date, p, except)) warn.push(`${n} มีสอน ${gradeLabel(own)} ${own.subject} คาบนี้ตามตาราง`);
     if (rank.records.some((r) => r.st === 'confirmed' && r.a === n && r.d === date && r.p === p && r.lt !== SWAP && !except.includes(r.i))
-      || rank.requests.some((x) => x.t === n && x.from <= date && date <= x.to && (!x.periods?.length || x.periods.includes(p)))) warn.push(`${n} ลา/ไม่อยู่ในคาบนี้`);
+      || rank.requests.some((x) => x.t === n && x.from <= date && date <= x.to && (!x.periods?.length || x.periods.includes(p)))
+      || rank.leaves.some((x) => x.t === n && x.from <= date && date <= x.to)) warn.push(`${n} ลา/ไม่อยู่ในวัน/คาบนี้`);
     return { hard, warn };
   };
   const ask = (warn) => confirmBox(`โปรดตรวจสอบ: ${warn.join(' · ')} — บันทึกต่อหรือไม่?`, 'บันทึกต่อ');

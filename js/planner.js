@@ -62,9 +62,16 @@ export function makeRanker(data, rank, absent, excludeRequest, dual = DUAL_DEFAU
   const info = Object.fromEntries(data.teachers.map((t) => [t.name, t]));
   const pool = realTeachers(data).filter((n) => n !== absent);
 
-  const onLeave = (n, date, p) => n === absent
-    || recs.some((r) => r.a === n && r.d === date && r.p === p && r.lt !== SWAP)
-    || reqs.some((q) => q.t === n && q.from <= date && date <= q.to && (!q.periods?.length || q.periods.includes(p)));
+  // ลา/ไม่อยู่: คำขอลา · รายการสอนแทนที่ครูคนนี้เป็นผู้ลา · ทะเบียนการลา (รวมที่งานบุคคล/ครูบันทึกเองโดยไม่มีคำขอ)
+  //   ลาครึ่งวันในทะเบียน: ถือว่าไม่อยู่ทั้งวัน (ระบบไม่รู้ว่าคาบไหนเป็นเช้า/บ่าย) — ผู้จัดบันทึกด้วยมือได้ถ้าจำเป็น
+  const leaves = rank.leaves || [];
+  const onLeave = (n, date, p) => {
+    if (n === absent) return 'ลา/ไม่อยู่';
+    if (recs.some((r) => r.a === n && r.d === date && r.p === p && r.lt !== SWAP)
+      || reqs.some((q) => q.t === n && q.from <= date && date <= q.to && (!q.periods?.length || q.periods.includes(p)))) return 'ลา/ไม่อยู่';
+    const l = leaves.find((x) => x.t === n && x.from <= date && date <= x.to);
+    return l ? (l.h ? `ลาครึ่งวัน${l.h === 'am' ? 'เช้า' : 'บ่าย'}` : 'ลา/ไม่อยู่') : '';
+  };
 
   const where = (n, d, p) => {
     const ss = slotsOf(data, n, d).sort((a, b) => Math.abs(a.p - p) - Math.abs(b.p - p) || a.p - b.p);
@@ -98,14 +105,15 @@ export function makeRanker(data, rank, absent, excludeRequest, dual = DUAL_DEFAU
         if (why === 'ok') isDual = true;
         else reasons.push(`มีสอนคาบนี้ (${teaching})${why ? ' · ' + why : ''}`);
       }
-      if (onLeave(n, item.date, item.p)) reasons.push('ลา/ไม่อยู่');
+      const away = onLeave(n, item.date, item.p);
+      if (away) reasons.push(away);
       const here = own.find((x) => x.d === item.date && x.p === item.p);
       if (here) reasons.push(here.sw ? 'แลกคาบมาสอนคาบนี้แล้ว' : 'สอนแทนคาบนี้แล้ว');
       const fair = own.filter((x) => !x.sw);   // แลกคาบไม่นับในความเป็นธรรม
       const week = fair.filter((x) => x.d >= ws && x.d <= we).length;
       const day = fair.filter((x) => x.d === item.date).length;
       const month = fair.filter((x) => x.d.slice(0, 7) === mon).length;
-      return { n, ok: !reasons.length, reasons, dual: isDual ? 1 : 0, teaching, soft: proposed.has(n) ? 1 : 0, dist, b, week, day,
+      return { n, ok: !reasons.length, reasons, dual: isDual && !reasons.length ? 1 : 0, teaching, soft: proposed.has(n) ? 1 : 0, dist, b, week, day,
         load: slotsOf(data, n, item.d).length + day, month, total: fair.length };
     }).sort((a, b) => (b.ok - a.ok) || (a.dual - b.dual) || (a.soft - b.soft) || (a.dist - b.dist) || (a.week - b.week) || (a.day - b.day)
       || (a.load - b.load) || (a.month - b.month) || (a.total - b.total) || a.n.localeCompare(b.n, 'th'));
@@ -149,8 +157,8 @@ export function mountPlanner(el, { data, rank, absent, items, excludeRequest = n
             <optgroup label="แนะนำ (เรียงตามลำดับ)">
               ${list.filter((c) => c.ok && !c.dual).map((c) => `<option value="${esc(c.n)}"${c.n === it.sel ? ' selected' : ''}>${esc(label(c))}</option>`).join('')}
             </optgroup>
-            ${list.some((c) => c.dual) ? `<optgroup label="คาบคู่ — มีสอนคาบนี้อยู่ แต่รับสอนแทนได้ (ห้องนักเรียนน้อย)">
-              ${list.filter((c) => c.dual).map((c) => `<option value="${esc(c.n)}"${c.n === it.sel ? ' selected' : ''}>${esc(label(c))}</option>`).join('')}
+            ${list.some((c) => c.ok && c.dual) ? `<optgroup label="คาบคู่ — มีสอนคาบนี้อยู่ แต่รับสอนแทนได้ (ห้องนักเรียนน้อย)">
+              ${list.filter((c) => c.ok && c.dual).map((c) => `<option value="${esc(c.n)}"${c.n === it.sel ? ' selected' : ''}>${esc(label(c))}</option>`).join('')}
             </optgroup>` : ''}
             <optgroup label="ไม่ว่าง">
               ${list.filter((c) => !c.ok).map((c) => `<option value="${esc(c.n)}" ${c.n === it.sel ? 'selected' : 'disabled'}>${esc(c.n)} · ${esc(c.reasons.join(', '))}</option>`).join('')}
