@@ -1213,8 +1213,10 @@ begin
   select count(*), count(*) filter (where note like 'คาบคู่%') into n, d from public.sub_records
    where sub_date = new.sub_date and period = new.period and substitute_teacher = new.substitute_teacher
      and status = 'confirmed' and id <> new.id;
-  if n >= 2 or (n = 1 and d = 0 and new.note not like 'คาบคู่%') then
-    raise exception 'sub_records_no_double: % สอนแทนคาบนี้แล้ว', new.substitute_teacher using errcode = '23505';
+  if n >= 2 then
+    raise exception 'sub_records_no_double: % สอนแทนคาบนี้ครบ 2 ห้องแล้ว', new.substitute_teacher using errcode = '23505';
+  elsif n = 1 and d = 0 and new.note not like 'คาบคู่%' then
+    raise exception 'sub_records_no_double: % สอนแทนคาบนี้อยู่แล้ว (ห้องที่ 2 ต้องเลือกจากกลุ่ม "คาบคู่" ห้องนักเรียนน้อย)', new.substitute_teacher using errcode = '23505';
   end if;
   return new;
 end $$;
