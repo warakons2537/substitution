@@ -69,9 +69,7 @@ create table if not exists public.sub_records (
 );
 create index if not exists sub_records_date on public.sub_records (sub_date);
 create index if not exists sub_records_req  on public.sub_records (request_id);
--- ครูคนเดียวสอนแทน 2 ห้องในคาบเดียวกันไม่ได้
-create unique index if not exists sub_records_no_double on public.sub_records (sub_date, period, substitute_teacher)
-  where substitute_teacher <> '' and status = 'confirmed';
+-- ครูสอนแทนซ้อนคาบ: ตรวจด้วย trigger sub_records_check_double (รอบ 11) — เดิมเป็น unique index ซึ่งสร้างซ้ำไม่ได้เมื่อมีข้อมูลคาบคู่แล้ว
 
 -- 5) ข้อมูลครูสำหรับแบบพิมพ์ (กรอกเองที่หน้า "ข้อมูลของฉัน")
 alter table public.sub_users add column if not exists full_name      text not null default '';  -- มีคำนำหน้า เช่น นายวรากร ตรงต่อกิจ

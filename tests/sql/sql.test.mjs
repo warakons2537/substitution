@@ -211,4 +211,11 @@ await t('ผู้ดูแลตั้งรหัสผ่านใหม่�
   await sys(`update public.sub_users set role = 'requester', duties = '{}' where user_id = $1`, [U.other]);
 });
 
+await t('รัน schema.sql ซ้ำได้แม้มีครูสอนแทน 2 ห้องในคาบเดียวกัน (คาบคู่)', async () => {
+  await sys(`insert into public.sub_records (sub_date, academic_year, term, period, absent_teacher, substitute_teacher, note, source)
+             values ($1, 2569, 2, 3, 'ครูก', 'ครูค', '', 'manual'), ($1, 2569, 2, 3, 'ครูง', 'ครูค', 'คาบคู่ ทดสอบ', 'manual')`, [day(2)]);
+  await db.exec(schema);
+  assert.equal((await sys(`select count(*)::int c from pg_indexes where indexname = 'sub_records_no_double'`))[0].c, 0);
+});
+
 console.log(`\nผ่าน ${n} ข้อ (SQL บน PGlite)`);
