@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
+import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 
 const here = new URL('.', import.meta.url);
 const schema = readFileSync(new URL('../../supabase/schema.sql', here), 'utf8');
@@ -15,7 +16,8 @@ alter default privileges in schema public grant all on tables to anon, authentic
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 create schema auth; grant usage on schema auth to anon, authenticated;
-create table auth.users (id uuid primary key, email text);
+create schema extensions;
+create table auth.users (id uuid primary key, email text, encrypted_password text, updated_at timestamptz);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 create function auth.jwt() returns jsonb language sql stable as $$ select jsonb_build_object('email', (select email from auth.users where id = auth.uid())) $$;
 grant execute on function auth.uid(), auth.jwt() to anon, authenticated;
@@ -25,7 +27,7 @@ create function public.is_admin() returns boolean language sql stable security d
 create publication supabase_realtime;
 `;
 
-const db = new PGlite();
+const db = new PGlite({ extensions: { pgcrypto } });
 await db.exec(SUPABASE_STUB);
 const notices = [];
 try {
@@ -190,6 +192,23 @@ await t('เตือนรับทราบซ้ำ: นับครูที
   assert.equal(sent, 2);
   assert.equal((await notifs('kc')).length, 1);
   await assert.rejects(as('ka', 'select public.sub_renotify($1)', [ids]), /permission denied/);
+});
+
+await t('ผู้ดูแลตั้งรหัสผ่านใหม่ให้ครู · บันทึกการใช้งานไม่เก็บรหัส · คนอื่น/บัญชีผู้ดูแล WL Admin ตั้งไม่ได้', async () => {
+  await sys(`update public.sub_users set role = 'admin', duties = '{admin}' where user_id = $1`, [U.other]);
+  await as('other', 'select public.sub_admin_set_password($1, $2)', [U.ka, 'NewPass#123']);
+  const [{ ok }] = await sys(`select encrypted_password = extensions.crypt('NewPass#123', encrypted_password) ok from auth.users where id = $1`, [U.ka]);
+  assert.ok(ok, 'รหัสผ่านใหม่ใช้ได้');
+  const [a] = await sys(`select row_id, new_data::text j from public.sub_audit where tbl = 'auth_password' order by id desc limit 1`);
+  assert.equal(a.row_id, U.ka);
+  assert.ok(!a.j.includes('NewPass'), 'ไม่เก็บตัวรหัสผ่าน');
+  await assert.rejects(as('other', 'select public.sub_admin_set_password($1, $2)', [U.ka, '123']), /อย่างน้อย 6/);
+  await assert.rejects(as('ka', 'select public.sub_admin_set_password($1, $2)', [U.kb, 'Another#1']), /permission denied/);
+  await assert.rejects(as('academic', 'select public.sub_admin_set_password($1, $2)', [U.kb, 'Another#1']), /permission denied/);
+  await sys(`update public.profiles set role = 'admin' where id = $1`, [U.kb]);
+  await assert.rejects(as('other', 'select public.sub_admin_set_password($1, $2)', [U.kb, 'Another#1']), /ผู้ดูแล WL Admin/);
+  await sys(`update public.profiles set role = 'user' where id = $1`, [U.kb]);
+  await sys(`update public.sub_users set role = 'requester', duties = '{}' where user_id = $1`, [U.other]);
 });
 
 console.log(`\nผ่าน ${n} ข้อ (SQL บน PGlite)`);

@@ -5,7 +5,7 @@ import { ROLES } from '../config.js';
 import { pill, hero } from '../gui.js';
 
 const TBL = { sub_records: 'รายการสอนแทน', sub_requests: 'คำขอลา/สอนแทน', sub_users: 'ผู้ใช้และสิทธิ์',
-  sub_settings: 'ตั้งค่า', sub_timetables: 'ตารางสอน', sub_leaves: 'ทะเบียนการลา', sub_leave_types: 'ประเภท/โควตาการลา', sub_holidays: 'วันหยุด' };
+  sub_settings: 'ตั้งค่า', sub_timetables: 'ตารางสอน', sub_leaves: 'ทะเบียนการลา', sub_leave_types: 'ประเภท/โควตาการลา', sub_holidays: 'วันหยุด', auth_password: 'รหัสผ่าน' };
 const OP = { INSERT: 'เพิ่ม', UPDATE: 'แก้ไข', DELETE: 'ลบ' };
 const OPCLS = { INSERT: 'approved', UPDATE: 'pending', DELETE: 'rejected' };
 const F = { sub_date: 'วันที่', period: 'คาบ', absent_teacher: 'ครูที่ลา', leave_type: 'ประเภทการลา', grade: 'ชั้น',
@@ -15,7 +15,7 @@ const F = { sub_date: 'วันที่', period: 'คาบ', absent_teacher:
   position_short: 'ตำแหน่ง (บันทึก)', phone: 'เบอร์โทร', academic_year: 'ปีการศึกษา', term: 'ภาคเรียน',
   name: 'ชื่อ', is_active: 'ใช้งาน', district: 'อำเภอ', area_office: 'เขตพื้นที่', personnel_name: 'หัวหน้าบุคคล',
   personnel_position: 'ตำแหน่งหัวหน้าบุคคล', academic_name: 'ผู้ลงนามบันทึกการสอนแทน', academic_position: 'ตำแหน่งผู้ลงนามบันทึกการสอนแทน',
-  director_name: 'ผู้อำนวยการ', director_position: 'ตำแหน่งผู้อำนวยการ' };
+  director_name: 'ผู้อำนวยการ', director_position: 'ตำแหน่งผู้อำนวยการ', account: 'บัญชี', password: 'รหัสผ่าน' };
 const SKIP = new Set(['id', 'user_id', 'created_at', 'updated_at', 'created_by', 'requested_by', 'decided_by', 'imported_by', 'request_id']);
 
 const val = (k, v) => {
@@ -32,6 +32,7 @@ function summary(r) {
   if (r.tbl === 'sub_records') return `${thDate(d.sub_date)} คาบ ${d.period} · ${d.absent_teacher} → ${d.substitute_teacher || 'ไม่ต้องสอนแทน'}`;
   if (r.tbl === 'sub_requests') return `${d.teacher_name} · ${thDate(d.date_from)}${d.date_to !== d.date_from ? ` – ${thDate(d.date_to)}` : ''} · ${d.status}`;
   if (r.tbl === 'sub_users') return `${d.full_name || d.teacher_name || d.user_id || ''} · ${ROLES[d.role] || d.role || ''}`;
+  if (r.tbl === 'auth_password') return `ตั้งรหัสผ่านใหม่ให้ ${d.account || ''}`;
   if (r.tbl === 'sub_timetables') return `ปีการศึกษา ${d.academic_year} ภาคเรียนที่ ${d.term} · ${d.name || ''}`;
   return '';
 }

@@ -1,5 +1,5 @@
 // ผู้ดูแลระบบ: กำหนดสิทธิ์และผูกบัญชีกับชื่อครู
-import { $, $$, esc, opts, toast , confirmBox } from '../util.js';
+import { $, $$, esc, opts, toast , confirmBox, modal } from '../util.js';
 import { sb, q } from '../db.js';
 import { DUTIES, roleOf } from '../perm.js';
 import { realTeachers } from '../timetable.js';
@@ -37,7 +37,7 @@ export async function render(el, ctx) {
         <label>ตำแหน่ง (ใบลา)<input name="position" maxlength="120" value="${esc(u.position || '')}" placeholder="เช่น ครูชำนาญการ" ${noAcc(u)}></label>
         <label>ตำแหน่งย่อ (บันทึกการสอนแทน)<input name="position_short" maxlength="60" value="${esc(u.position_short || '')}" placeholder="เช่น ครู คศ.2" ${noAcc(u)}></label>
         <label>เบอร์โทร<input name="phone" maxlength="40" value="${esc(u.phone || '')}" ${noAcc(u)}></label></div>
-      <div class="g-actions"><button class="g-btn g-btn-sm" type="button" data-save ${noAcc(u)}>บันทึก</button></div></article>`).join('')}
+      <div class="g-actions"><button class="g-btn g-btn-sm g-btn-line" type="button" data-pw ${noAcc(u)}>ตั้งรหัสผ่านใหม่</button><button class="g-btn g-btn-sm" type="button" data-save ${noAcc(u)}>บันทึก</button></div></article>`).join('')}
     </div></div>`;
   const filter = () => {
     const t = $('#u-q', el).value.trim().toLowerCase(); const r = $('#u-r', el).value; let n = 0;
@@ -50,6 +50,7 @@ export async function render(el, ctx) {
   $('#u-q', el).addEventListener('input', filter);
   $('#u-r', el).addEventListener('change', filter);
   filter();
+  $$('[data-pw]', el).forEach((b) => b.addEventListener('click', () => setPassword(users.find((u) => u.user_id === b.closest('[data-u]').dataset.u))));
   $$('[data-save]', el).forEach((b) => b.addEventListener('click', async () => {
     const tr = b.closest('[data-u]'); const id = tr.dataset.u;
     const teacher = tr.querySelector('[name=teacher]').value;
@@ -65,4 +66,36 @@ export async function render(el, ctx) {
       toast('บันทึกแล้ว');
     } catch (e) { toast(e.message, 'err'); }
   }));
+}
+
+// รหัสผ่านสุ่ม 10 ตัว (ตัดตัวที่สับสนง่าย เช่น 0/O 1/l/I)
+const CH = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+const randomPw = () => [...crypto.getRandomValues(new Uint32Array(10))].map((x) => CH[x % CH.length]).join('');
+
+// ผู้ดูแลตั้งรหัสผ่านใหม่ให้ครู — ดูรหัสเดิมไม่ได้ (Supabase เก็บแบบเข้ารหัสทางเดียว) · รหัสใหม่แสดงครั้งเดียวให้ส่งต่อครู
+async function setPassword(u) {
+  const p = modal(`ตั้งรหัสผ่านใหม่ · ${u.full_name || u.email}`, `
+    <p class="g-sub">ระบบดูรหัสผ่านเดิมไม่ได้ (เก็บแบบเข้ารหัสทางเดียว) — ตั้งรหัสใหม่แล้วแจ้งครู ครูใช้รหัสนี้เข้าได้ทั้งระบบสอนแทนและ WL Admin</p>
+    <label>บัญชี<input value="${esc(u.email)}" disabled></label>
+    <label>รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)<input name="pw" minlength="6" maxlength="72" required autocomplete="off" spellcheck="false" value="${randomPw()}"></label>
+    <p><button type="button" class="g-btn g-btn-sm g-btn-line" data-rand>สุ่มรหัสใหม่</button></p>`, { okText: 'ตั้งรหัสผ่าน' });
+  const w = document.body.lastElementChild;
+  w.querySelector('[data-rand]').addEventListener('click', () => { w.querySelector('[name=pw]').value = randomPw(); });
+  const r = await p;
+  if (!r) return;
+  try {
+    await q(sb.rpc('sub_admin_set_password', { p_user: u.user_id, p_password: r.pw }));
+  } catch (e) {
+    toast(/sub_admin_set_password|schema cache/i.test(e.message) ? 'ยังไม่ได้รัน supabase/schema.sql รอบ 12' : e.message, 'err');
+    return;
+  }
+  const done = modal('ตั้งรหัสผ่านแล้ว', `
+    <p>แจ้งครูให้เข้าสู่ระบบด้วยข้อมูลนี้ (ปิดหน้าต่างแล้วจะดูรหัสนี้อีกไม่ได้)</p>
+    <label>อีเมล<input value="${esc(u.email)}" readonly></label>
+    <label>รหัสผ่าน<input value="${esc(r.pw)}" readonly spellcheck="false"></label>
+    <p><button type="button" class="g-btn g-btn-sm g-btn-line" data-copy>คัดลอกอีเมลและรหัสผ่าน</button></p>`, { okText: 'ปิด', cancelText: '' });
+  document.body.lastElementChild.querySelector('[data-copy]').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(`อีเมล: ${u.email}\nรหัสผ่าน: ${r.pw}`); toast('คัดลอกแล้ว'); } catch { toast('คัดลอกไม่ได้ กรุณาคัดลอกเอง', 'err'); }
+  });
+  await done;
 }

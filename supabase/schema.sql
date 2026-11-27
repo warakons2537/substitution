@@ -1224,3 +1224,30 @@ end $$;
 drop trigger if exists sub_records_check_double on public.sub_records;
 create trigger sub_records_check_double before insert or update of sub_date, period, substitute_teacher, status, note
   on public.sub_records for each row execute function public.sub_records_check_double();
+
+-- =====================================================================
+--  รอบ 12: ผู้ดูแลระบบตั้งรหัสผ่านใหม่ให้ครู (ดูรหัสผ่านเดิมไม่ได้ — Supabase เก็บแบบ bcrypt ถอดกลับไม่ได้)
+--  · เฉพาะผู้ดูแลระบบสอนแทน · บัญชีผู้ดูแลของ WL Admin ตั้งได้เฉพาะผู้ดูแล WL Admin
+--  · บันทึกลง "บันทึกการใช้งาน" ว่าใครตั้งให้ใคร (ไม่เก็บตัวรหัสผ่าน)
+-- =====================================================================
+create extension if not exists pgcrypto with schema extensions;
+
+create or replace function public.sub_admin_set_password(p_user uuid, p_password text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare em text;
+begin
+  if not public.sub_is_admin() then raise exception 'permission denied'; end if;
+  if length(coalesce(p_password, '')) < 6 then raise exception 'รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร'; end if;
+  if length(p_password) > 72 then raise exception 'รหัสผ่านยาวเกิน 72 ตัวอักษร'; end if;
+  if exists (select 1 from public.profiles where id = p_user and role = 'admin') and not public.is_admin() then
+    raise exception 'บัญชีนี้เป็นผู้ดูแล WL Admin — ต้องให้ผู้ดูแล WL Admin ตั้งรหัสผ่านให้';
+  end if;
+  update auth.users set encrypted_password = extensions.crypt(p_password, extensions.gen_salt('bf')), updated_at = now()
+   where id = p_user returning email into em;
+  if not found then raise exception 'ไม่พบบัญชีเข้าสู่ระบบนี้'; end if;
+  insert into public.sub_audit (user_id, email, tbl, op, row_id, old_data, new_data)
+  values (auth.uid(), coalesce(auth.jwt() ->> 'email', ''), 'auth_password', 'UPDATE', p_user::text,
+          null, jsonb_build_object('account', coalesce(em, ''), 'password', 'ตั้งใหม่โดยผู้ดูแลระบบ'));
+end $$;
+revoke execute on function public.sub_admin_set_password(uuid, text) from public, anon;
+grant execute on function public.sub_admin_set_password(uuid, text) to authenticated;
