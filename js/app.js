@@ -1,5 +1,5 @@
 import { fitHeroTitles } from './gui.js';
-import { $, $$, esc, toast } from './util.js';
+import { $, $$, esc, toast, modal } from './util.js';
 import { BRAND, VERSION } from './config.js';
 import { auth, loadMe, activeTimetable } from './db.js';
 import { pagesFor, groupsFor, tabsOf, dutyText } from './perm.js';
@@ -56,8 +56,10 @@ function loginPage(mode = 'in') {
       <button class="btn btn-primary" type="submit">${up ? 'สมัครใช้งาน' : 'เข้าสู่ระบบ'}</button>
       <p class="muted small">${up ? 'สมัครแล้วต้องรอผู้ดูแลระบบกำหนดสิทธิ์ก่อนจึงจะใช้งานได้ · บัญชีนี้ใช้กับ WL Admin ได้ด้วย' : 'ใช้บัญชีเดียวกับ WL Admin'}</p>
     </form>
+    ${up ? '' : '<button class="btn btn-sm" type="button" id="l-forgot">ลืมรหัสผ่าน?</button>'}
     <button class="btn btn-sm" type="button" data-m="${up ? 'in' : 'up'}">${up ? 'มีบัญชีแล้ว? เข้าสู่ระบบ' : 'ยังไม่มีบัญชี? สมัครใช้งาน (ครู)'}</button></div></div></div>`;
   $$('[data-m]').forEach((b) => b.addEventListener('click', () => loginPage(b.dataset.m)));
+  $('#l-forgot')?.addEventListener('click', () => forgotPassword($('#f-login [name=email]').value));
   $('#f-login').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target).entries());
@@ -68,6 +70,24 @@ function loginPage(mode = 'in') {
       else { toast('สมัครแล้ว กรุณายืนยันอีเมลจากกล่องจดหมาย แล้วกลับมาเข้าสู่ระบบ'); loginPage('in'); }
     } catch (err) { toast(err.message, 'err'); }
   });
+}
+
+// ---------- รหัสผ่าน (บัญชีเดียวกับ WL Admin ใช้ได้ทุกแอปในเครือ) ----------
+const PW_FIELDS = `<label>รหัสผ่านใหม่<input type="password" name="pw" minlength="6" maxlength="72" autocomplete="new-password" required></label>
+  <label>ยืนยันรหัสผ่านใหม่<input type="password" name="pw2" minlength="6" maxlength="72" autocomplete="new-password" required></label>`;
+async function askNewPassword(title, note, cancelText = 'ยกเลิก') {
+  for (;;) {
+    const r = await modal(title, `<p class="muted small" style="margin:0">${esc(note)}</p>${PW_FIELDS}`, { okText: 'บันทึกรหัสผ่าน', cancelText });
+    if (!r) return false;
+    if (r.pw !== r.pw2) { toast('รหัสผ่านทั้ง 2 ช่องไม่ตรงกัน', 'err'); continue; }
+    try { await auth.updatePassword(r.pw); toast('บันทึกรหัสผ่านใหม่แล้ว'); return true; } catch (err) { toast(err.message, 'err'); }
+  }
+}
+async function forgotPassword(email = '') {
+  const r = await modal('ลืมรหัสผ่าน', `<p class="muted small" style="margin:0">กรอกอีเมลที่ใช้สมัคร ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้ (ถ้าไม่ได้รับอีเมล ให้ดูในจดหมายขยะ หรือขอให้ผู้ดูแลระบบตั้งรหัสให้)</p>
+    <label>อีเมล<input type="email" name="email" autocomplete="username" required value="${esc(email)}"></label>`, { okText: 'ส่งลิงก์' });
+  if (!r) return;
+  try { await auth.resetPassword(r.email.trim()); toast('ส่งลิงก์ตั้งรหัสผ่านใหม่แล้ว กรุณาเปิดอีเมล'); } catch (err) { toast(err.message, 'err'); }
 }
 
 function shell(me) {
@@ -87,6 +107,7 @@ function shell(me) {
           <div class="user-panel" hidden role="menu">
             <div class="user-head"><b>${esc(name)}</b><small>${esc(me.email || '')}</small><small>${esc(dutyText(me))}</small></div>
             <a href="#profile" role="menuitem">${icon('profile')}<span>ข้อมูลของฉัน</span></a>
+            <button type="button" id="change-pw" role="menuitem">${icon('lock')}<span>เปลี่ยนรหัสผ่าน</span></button>
             <a href="../" role="menuitem">${icon('link')}<span>ทางเข้า WL (ทุกแอป)</span></a>
             <button type="button" id="logout" role="menuitem">${icon('logout')}<span>ออกจากระบบ</span></button>
           </div></div>
@@ -103,6 +124,7 @@ function shell(me) {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
   const doLogout = async () => { bell?.destroy(); bell = null; clearInterval(clockTimer); await dropPush(); await auth.signOut(); location.hash = ''; boot(); };
   $('#logout').addEventListener('click', doLogout);
+  $('#change-pw').addEventListener('click', () => { setMenu(false); askNewPassword('เปลี่ยนรหัสผ่าน', 'ใช้กับแอปในเครือ WL ทุกตัว (บัญชีเดียวกับ WL Admin)'); });
   $('#logout-btn').addEventListener('click', doLogout);
   // วันที่-เวลาปัจจุบัน (จอกว้าง) และสถานะออนไลน์
   clearInterval(clockTimer);
@@ -174,6 +196,10 @@ async function boot() {
   bell?.destroy(); bell = null;
   try {
     const user = await auth.user();
+    const rec = auth.takeRecovery();
+    if (rec.error) toast(`ลิงก์ตั้งรหัสผ่านใช้ไม่ได้ (${rec.error}) กรุณากด "ลืมรหัสผ่าน?" เพื่อขอลิงก์ใหม่`, 'err');
+    if (/access_token|error_description/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+    if (user && rec.recovery) await askNewPassword('ตั้งรหัสผ่านใหม่', 'คุณเปิดจากลิงก์ "ลืมรหัสผ่าน" กรุณาตั้งรหัสผ่านใหม่', '');
     if (!user) { loginPage(); return; }
     const me = await loadMe(user);
     if (!me.role) {

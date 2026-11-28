@@ -1,10 +1,18 @@
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 
+// เปิดจากลิงก์ "ลืมรหัสผ่าน" ในอีเมล: ต้องจำไว้ก่อน supabase-js อ่านแล้วล้างที่อยู่
+const fromUrl = new URLSearchParams(typeof location === 'undefined' ? '' : location.hash.slice(1));
+let recovery = fromUrl.get('type') === 'recovery';
+let linkError = fromUrl.get('error_description');
 export const sb = window.supabase.createClient(SUPABASE_URL.trim(), SUPABASE_KEY.trim());
+sb.auth?.onAuthStateChange((e) => { if (e === 'PASSWORD_RECOVERY') recovery = true; });
 
 const TH = [
   [/Invalid login credentials/i, 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'],
   [/Email not confirmed/i, 'บัญชีนี้ยังไม่ได้ยืนยันอีเมล'],
+  [/New password should be different/i, 'รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสเดิม'],
+  [/Password should be at least/i, 'รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร'],
+  [/rate limit|security purposes/i, 'ขอส่งอีเมลถี่เกินไป กรุณารอสักครู่แล้วลองใหม่'],
   // unique index เดิม (ยังไม่ได้รัน SQL รอบ 11) · trigger รอบ 11 ส่งชื่อครู/เหตุผลมาให้
   [/duplicate key.*sub_records_no_double/i, 'ฐานข้อมูลยังรับครูสอนแทนได้คาบละ 1 ห้อง (ยังไม่ได้รัน SQL รอบ 11) — ให้ผู้ดูแลระบบรัน supabase/schema.sql ล่าสุดใน Supabase แล้วบันทึกใหม่'],
   [/sub_records_no_double:\s*(.+)/i, (m) => `บันทึกไม่ได้: ${m[1]} กรุณาเลือกครูใหม่`],
@@ -30,6 +38,9 @@ export const auth = {
   signIn: (email, password) => q(sb.auth.signInWithPassword({ email, password })),
   signUp: (email, password, full_name) => q(sb.auth.signUp({ email, password, options: { data: { full_name } } })),
   signOut: () => sb.auth.signOut(),
+  async updatePassword(password) { await q(sb.auth.updateUser({ password })); recovery = false; },
+  resetPassword: (email) => q(sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })),
+  takeRecovery() { const r = { recovery, error: linkError ? linkError.replace(/\+/g, ' ') : null }; linkError = null; return r; },
 };
 
 export async function loadMe(user) {

@@ -28,6 +28,7 @@ const P = {
   remind: '<circle class="f" cx="12" cy="13" r="7.2"/><circle cx="12" cy="13" r="7.2"/><path d="M12 9.3V13l2.4 1.6"/><path d="M5.2 3.8 2.8 6.2M18.8 3.8l2.4 2.4"/>',
   dual: '<rect class="f" x="3" y="6" width="11" height="12" rx="2"/><rect x="3" y="6" width="11" height="12" rx="2"/><rect x="10" y="3" width="11" height="12" rx="2"/><path d="M6.5 14h4M13.5 7.5h4M13.5 11h4"/>',
   profile: '<circle class="f" cx="12" cy="8" r="3.7"/><circle cx="12" cy="8" r="3.7"/><path d="M4.5 20.5c.8-4 3.6-6 7.5-6s6.7 2 7.5 6"/>',
+  lock: '<rect class="f" x="5" y="10.5" width="14" height="10" rx="2"/><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/>',
   // ----- ทั่วไป -----
   link: '<rect class="f" x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/>',
   logout: '<path d="M14.5 4H18a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3.5"/><path d="M10 16.5 5.5 12 10 7.5M5.5 12H16"/>',
